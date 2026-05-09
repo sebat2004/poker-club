@@ -1,0 +1,31 @@
+version: "3.5"
+
+networks:
+  default:
+    attachable: true
+    name: "neko-rooms-net"
+
+services:
+  neko-rooms:
+    image: "m1k1o/neko-rooms:latest"
+    restart: "unless-stopped"
+
+    environment:
+      - "TZ=America/Los_Angeles"
+
+      - "NEKO_ROOMS_MUX=true"
+      - "NEKO_ROOMS_EPR=59100-59149"
+      - "NEKO_ROOMS_NAT1TO1=127.0.0.1"
+      - "NEKO_ROOMS_INSTANCE_URL=http://127.0.0.1:8080/"
+      - "NEKO_ROOMS_INSTANCE_NETWORK=neko-rooms-net"
+
+      - "NEKO_ROOMS_TRAEFIK_ENABLED=false"
+      - "NEKO_ROOMS_PATH_PREFIX=/room/"
+
+      - "NEKO_ROOMS_NEKO_IMAGES=ghcr.io/m1k1o/neko/firefox:latest"
+
+    ports:
+      - "8080:8080"
+
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"

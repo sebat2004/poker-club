@@ -1,0 +1,38 @@
+services:
+  neko-room-1:
+    image: ghcr.io/m1k1o/neko/firefox:latest
+    restart: unless-stopped
+    shm_size: "2gb"
+    ports:
+      - "8081:8080"
+      - "57000-57100:57000-57100/udp"
+    volumes:
+      - ./members.json:/opt/neko/members.json
+    environment:
+      NEKO_SERVER_BIND: "0.0.0.0:8080"
+      NEKO_MEMBER_PROVIDER: "file"
+      NEKO_MEMBER_FILE_PATH: "/opt/neko/members.json"
+      NEKO_MEMBER_FILE_HASH: "false"
+      NEKO_WEBRTC_EPR: "57000-57100"
+      NEKO_WEBRTC_ICELITE: "true"
+      NEKO_WEBRTC_NAT1TO1: "127.0.0.1"
+      NEKO_SESSION_COOKIE_SECURE: "false"
+
+  neko-room-2:
+    image: ghcr.io/m1k1o/neko/firefox:latest
+    restart: unless-stopped
+    shm_size: "2gb"
+    ports:
+      - "8082:8080"
+      - "57101-57201:57101-57201/udp"
+    volumes:
+      - ./members.json:/opt/neko/members.json
+    environment:
+      NEKO_SERVER_BIND: "0.0.0.0:8080"
+      NEKO_MEMBER_PROVIDER: "file"
+      NEKO_MEMBER_FILE_PATH: "/opt/neko/members.json"
+      NEKO_MEMBER_FILE_HASH: "false"
+      NEKO_WEBRTC_EPR: "57101-57201"
+      NEKO_WEBRTC_ICELITE: "true"
+      NEKO_WEBRTC_NAT1TO1: "127.0.0.1"
+      NEKO_SESSION_COOKIE_SECURE: "false"
