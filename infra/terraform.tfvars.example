@@ -1,8 +1,10 @@
 allowed_ssh_cidr = "YOUR_CURRENT_IP/32"
-instance_type    = "c7i.xlarge"
+instance_type    = "t4g.2xlarge"
 
 aws_region          = "us-west-2"
 availability_zone   = "us-west-2a"
 data_volume_size_gb = 20
 
 ssh_public_key_path = "~/.ssh/id_rsa.pub"
+
+caddy_basic_auth_hash = "$2a$14$TupAfPmdnTnUGIZ64KVW5.azO57Y1vwJDu86HTcjwzy679eQ2LO2."

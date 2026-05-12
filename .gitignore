@@ -30,7 +30,6 @@ coverage/
 .env.production.local
 *.env
 
-# Keep examples if you make them
 !.env.example
 
 # =========================
@@ -46,11 +45,10 @@ crash.log
 crash.*.log
 
 # Local Terraform variables can contain IPs, AMI IDs, etc.
-terraform.tfvars
+*terraform.tfvars*
 *.auto.tfvars
 *.auto.tfvars.json
 
-# Keep examples if you make them
 !terraform.tfvars.example
 
 # =========================
@@ -75,7 +73,6 @@ docker-compose.override.yml
 members.json
 rooms.json
 
-# If you store local browser profiles/cookies
 profiles/
 browser-profiles/
 neko-profiles/

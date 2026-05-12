@@ -20,7 +20,7 @@ variable "project_name" {
 
 variable "instance_type" {
   type    = string
-  default = "c7i.xlarge"
+  default = "t4g.2xlarge"
 }
 
 variable "ssh_public_key_path" {
@@ -41,4 +41,10 @@ variable "data_volume_size_gb" {
 variable "data_volume_device_name" {
   type    = string
   default = "/dev/sdf"
+}
+
+variable "caddy_basic_auth_hash" {
+  description = "Hashed password for Caddy basic auth"
+  type        = string
+  sensitive   = true
 }

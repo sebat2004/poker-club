@@ -15,11 +15,21 @@ provider "aws" {
 
 data "aws_ami" "ubuntu" {
   most_recent = true
-  owners      = ["099720109477"] # Canonical Ubuntu
+  owners      = ["099720109477"]
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-arm64-server-*"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["arm64"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
   }
 }
 
@@ -131,6 +141,7 @@ resource "aws_instance" "neko" {
     data_volume_id_no_dash = replace(aws_ebs_volume.neko_data.id, "-", "")
 
     docker_compose_yml = file("${path.module}/../neko-rooms-club/docker-compose.yml")
+		caddy_basic_auth_hash  = var.caddy_basic_auth_hash
   })
 
   tags = {

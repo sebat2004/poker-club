@@ -42,7 +42,7 @@ systemctl enable docker
 systemctl start docker
 
 # -----------------------------
-# Caddy install for HTTPS/TLS
+# Caddy install for HTTPS/TLS + Basic Auth
 # -----------------------------
 if ! command -v caddy >/dev/null 2>&1; then
   apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl
@@ -59,6 +59,10 @@ fi
 
 cat >/etc/caddy/Caddyfile <<EOF
 $${DOMAIN_NAME} {
+  basic_auth {
+    admin ${caddy_basic_auth_hash}
+  }
+
   reverse_proxy localhost:8080
 }
 EOF
