@@ -6,8 +6,8 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-[#090604] text-[#f5eee6]">
       <div className="mx-auto max-w-6xl px-6">
-        <nav className="flex items-center justify-between border-b border-orange-500/20 py-5">
-          <Link href="/" className="flex items-center gap-3">
+        <nav className="flex items-center justify-between border-b border-orange-500/20 py-5 gap-6">
+          <Link href="/" className="flex items-center gap-3 w-1/2">
             <img
               src="/logo.png"
               alt="Poker Club at OSU logo"
@@ -26,32 +26,32 @@ export default function HomePage() {
 
           <Link
             href="/rooms"
-            className="rounded-xl border border-orange-500/30 px-4 py-2 text-sm font-semibold text-orange-100 transition hover:bg-orange-500/10 hover:text-orange-300"
+            className="rounded-xl w-1/2 border border-orange-500/30 px-4 py-2 text-xs text-center font-semibold text-orange-100 transition hover:bg-orange-500/10 hover:text-orange-300 md:text-sm md:w-max"
           >
             GTO Wizard Rooms
           </Link>
         </nav>
 
         <section className="relative grid min-h-[76vh] items-center gap-12 lg:grid-cols-[0.9fr_540px]">
-          <div className="absolute right-4 top-16 hidden select-none gap-5 text-4xl text-orange-500/[0.08] md:flex">
+          <div className="absolute right-4 top-16 hidden select-none gap-5 text-4xl text-orange-500/[0.08]">
             {suits.map((suit) => (
               <span key={suit}>{suit}</span>
             ))}
           </div>
 
-          <div>
-            <h1 className="max-w-3xl text-5xl font-bold tracking-tight text-[#f5eee6] md:text-7xl">
+          <div className="flex flex-col items-center w-full md:items-start">
+            <h1 className="max-w-3xl text-5xl pt-5 font-bold tracking-tight text-center text-[#f5eee6] sm:text-7xl md:text-start">
               Learn poker.
               <br />
               <span className="text-orange-500">Play better.</span>
             </h1>
 
-            <p className="mt-6 max-w-xl text-lg leading-8 text-orange-100/60">
+            <p className="mt-6 max-w-xl text-md leading-8 text-center text-orange-100/60 md:text-start sm:text-lg">
               A student-run club for learning poker strategy and playing
               tournaments with other Oregon State University students.
             </p>
 
-            <div className="mt-9 flex flex-wrap gap-3">
+            <div className="mt-6 flex flex-wrap gap-3 justify-center md:justify-start">
               <Link
                 href="/rooms"
                 className="rounded-2xl bg-orange-500 px-6 py-3 text-sm font-bold text-black border transition hover:bg-orange-400"
@@ -61,7 +61,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-[2rem] border border-orange-500/20 bg-orange-500/[0.04] p-2 shadow-2xl shadow-orange-950/30">
+          <div className="overflow-hidden rounded-[2rem] border border-orange-500/20 bg-orange-500/[0.04] p-2 shadow-2xl shadow-orange-950/30 mb-4">
             <div className="relative aspect-[16/10] overflow-hidden rounded-[1.65rem] bg-zinc-950">
               <img
                 src="/hero.jpg"
@@ -75,7 +75,7 @@ export default function HomePage() {
                 <img
                     src="/logo.png"
                     alt="Poker Club at OSU logo"
-                    className="h-20 w-20 rounded-full object-cover shadow-xl ring-2 ring-orange-500/50"
+                    className="h-14 w-14 rounded-full object-cover shadow-xl ring-2 ring-orange-500/50 md:h-20 md:w-20"
                 />
               </div>
 
