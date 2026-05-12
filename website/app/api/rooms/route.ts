@@ -384,16 +384,47 @@ export async function GET() {
     if (state !== "running") {
       return Response.json({
         ec2_state: state,
+        server: {
+          state,
+          online: false,
+          message:
+            state === "stopped"
+              ? "Server is asleep. Create a room to wake it up."
+              : state === "pending"
+                ? "Server is starting..."
+                : state === "stopping"
+                  ? "Server is shutting down."
+                  : "Server is offline.",
+        },
         rooms: [],
       });
     }
 
-    const rooms = await listRooms();
+    try {
+      const rooms = await listRooms();
 
-    return Response.json({
-      ec2_state: state,
-      rooms: rooms.map(normalizeRoom),
-    });
+      return Response.json({
+        ec2_state: state,
+        server: {
+          state,
+          online: true,
+          message: "Server is online.",
+        },
+        rooms: rooms.map(normalizeRoom),
+      });
+    } catch (nekoError) {
+      console.warn("EC2 is running but Neko Rooms is not ready yet:", nekoError);
+
+      return Response.json({
+        ec2_state: state,
+        server: {
+          state: "pending",
+          online: false,
+          message: "Server is starting. Neko Rooms is still booting...",
+        },
+        rooms: [],
+      });
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
