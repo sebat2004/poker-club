@@ -103,15 +103,6 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="rounded-3xl border border-orange-500/10 bg-orange-500/[0.03] p-5">
-            <p className="mb-2 text-2xl text-orange-500">♣</p>
-            <h3 className="text-xl font-bold text-[#f5eee6]">Review hands</h3>
-            <p className="mt-3 leading-7 text-orange-100/55">
-              Talk through real spots and learn why certain decisions make
-              sense.
-            </p>
-          </div>
-
           <div
             id="tools"
             className="rounded-3xl border border-orange-500/10 bg-orange-500/[0.03] p-5"
@@ -121,6 +112,14 @@ export default function HomePage() {
             <p className="mt-3 leading-7 text-orange-100/55">
               Access shared browser rooms for approved poker resources and study
               sessions.
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-orange-500/10 bg-orange-500/[0.03] p-5">
+            <p className="mb-2 text-2xl text-orange-500">♣</p>
+            <h3 className="text-xl font-bold text-[#f5eee6]">Play tournaments</h3>
+            <p className="mt-3 leading-7 text-orange-100/55">
+              Play in real weekly tournaments to practice and improve your game.
             </p>
           </div>
         </section>
