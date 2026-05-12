@@ -11,21 +11,9 @@ export default function HomePage() {
             <div className="text-2xl text-emerald-400">♠</div>
             <div>
               <p className="font-bold leading-none">Poker Club</p>
-              <p className="text-xs text-zinc-500">Oregon State University</p>
+              <p className="text-xs text-zinc-500">at Oregon State University</p>
             </div>
           </Link>
-
-          <div className="hidden items-center gap-8 text-sm text-zinc-400 md:flex">
-            <a href="#about" className="transition hover:text-white">
-              About
-            </a>
-            <a href="#learn" className="transition hover:text-white">
-              Learn
-            </a>
-            <a href="#tools" className="transition hover:text-white">
-              Tools
-            </a>
-          </div>
 
           <Link
             href="/rooms"
@@ -35,7 +23,7 @@ export default function HomePage() {
           </Link>
         </nav>
 
-        <section className="relative grid min-h-[76vh] items-center gap-12 py-16 lg:grid-cols-[1fr_380px]">
+        <section className="relative grid min-h-[76vh] items-center gap-12 lg:grid-cols-[0.9fr_540px]">
           <div className="absolute right-4 top-16 hidden select-none gap-5 text-4xl text-white/[0.05] md:flex">
             {suits.map((suit) => (
               <span key={suit}>{suit}</span>
@@ -54,8 +42,7 @@ export default function HomePage() {
             </h1>
 
             <p className="mt-6 max-w-xl text-lg leading-8 text-zinc-400">
-              A student-run club for learning poker strategy, reviewing hands,
-              and playing with other Oregon State students.
+              A student-run club for learning poker strategy and playing tournaments with other Oregon State University students.
             </p>
 
             <div className="mt-9 flex flex-wrap gap-3">
@@ -76,21 +63,18 @@ export default function HomePage() {
           </div>
 
           <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.03] p-2">
-            <div className="relative aspect-[4/5] overflow-hidden rounded-[1.65rem] bg-zinc-900">
+            <div className="relative aspect-[16/10] overflow-hidden rounded-[1.65rem] bg-zinc-900">
               <img
                 src="/hero.jpg"
                 alt="Poker table with cards and chips"
-                className="h-full w-full object-cover opacity-90"
+                className="h-full w-full object-cover object-[center_70%] opacity-90"
               />
 
               <div className="absolute inset-0 bg-gradient-to-t from-[#060b08] via-transparent to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-6">
                   <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-300">
-                      Poker Club
+                      Poker Club - 1st Tournament
                   </p>
-                  <h2 className="mt-2 text-2xl font-bold">
-                      Learn the game with other students.
-                  </h2>
               </div>
             </div>
           </div>
