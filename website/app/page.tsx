@@ -71,11 +71,11 @@ export default function HomePage() {
 
               <div className="absolute inset-0 bg-gradient-to-t from-[#090604] via-[#090604]/10 to-transparent" />
 
-              <div className="absolute left-5 top-5">
+              <div className="absolute right-5 top-5">
                 <img
-                  src="/logo.png"
-                  alt="Poker Club at OSU logo"
-                  className="h-20 w-20 rounded-full object-cover shadow-xl ring-2 ring-orange-500/50"
+                    src="/logo.png"
+                    alt="Poker Club at OSU logo"
+                    className="h-20 w-20 rounded-full object-cover shadow-xl ring-2 ring-orange-500/50"
                 />
               </div>
 
