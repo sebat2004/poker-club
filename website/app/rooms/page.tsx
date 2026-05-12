@@ -64,7 +64,7 @@ function getRoomUrl(room: Room) {
 function StatusBadge({ room }: { room: Room }) {
   if (isRoomReady(room)) {
     return (
-      <span className="rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-xs font-semibold text-orange-300">
+      <span className="shrink-0 rounded-full border border-orange-500/30 bg-orange-500/10 px-2.5 py-1 text-xs font-semibold text-orange-300 sm:px-3">
         Ready
       </span>
     );
@@ -72,14 +72,14 @@ function StatusBadge({ room }: { room: Room }) {
 
   if (room.running) {
     return (
-      <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-300">
+      <span className="shrink-0 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-300 sm:px-3">
         Starting
       </span>
     );
   }
 
   return (
-    <span className="rounded-full border border-zinc-600 bg-zinc-800 px-3 py-1 text-xs font-semibold text-zinc-300">
+    <span className="shrink-0 rounded-full border border-zinc-600 bg-zinc-800 px-2.5 py-1 text-xs font-semibold text-zinc-300 sm:px-3">
       Offline
     </span>
   );
@@ -185,41 +185,41 @@ export default function RoomsPage() {
   );
 
   return (
-    <main className="min-h-screen bg-[#090604] text-[#f5eee6]">
-      <div className="mx-auto max-w-6xl px-6 py-8">
-        <header className="mb-8 flex flex-col gap-5 border-b border-orange-500/20 pb-6 md:flex-row md:items-center md:justify-between">
-          <div>
+    <main className="min-h-screen overflow-x-hidden bg-[#090604] text-[#f5eee6]">
+      <div className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 sm:py-8">
+        <header className="mb-5 flex flex-col gap-4 border-b border-orange-500/20 pb-5 sm:mb-8 sm:gap-5 sm:pb-6 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
             <Link
               href="/"
-              className="mb-4 inline-flex text-sm text-orange-100/50 transition hover:text-orange-300"
+              className="mb-3 inline-flex text-sm text-orange-100/50 transition hover:text-orange-300 sm:mb-4"
             >
               ← Back home
             </Link>
 
-            <p className="mb-2 text-sm font-semibold uppercase tracking-[0.25em] text-orange-400">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-orange-400 sm:text-sm sm:tracking-[0.25em]">
               OSU Poker Club
             </p>
 
-            <h1 className="text-4xl font-bold tracking-tight text-[#f5eee6] md:text-5xl">
+            <h1 className="text-3xl font-bold tracking-tight text-[#f5eee6] sm:text-4xl md:text-5xl">
               GTO Wizard Rooms
             </h1>
 
-            <p className="mt-3 max-w-2xl text-orange-100/55">
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-orange-100/55 sm:mt-3 sm:text-base">
               Create a temporary shared room or join one that is already open.
             </p>
 
             {statusMessage && (
-              <p className="mt-3 inline-flex rounded-full border border-orange-500/20 bg-[#140d08] px-4 py-2 text-sm text-orange-100/70">
+              <p className="mt-3 hidden max-w-full rounded-full border border-orange-500/20 bg-[#140d08] px-3 py-2 text-xs leading-5 text-orange-100/70 sm:px-4 sm:text-sm md:inline-flex">
                 {statusMessage}
               </p>
             )}
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
             <button
               onClick={loadRooms}
               disabled={isLoadingRooms}
-              className="rounded-2xl border border-orange-500/25 bg-[#140d08] px-5 py-3 text-sm font-semibold text-orange-100 transition hover:border-orange-400/50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl border border-orange-500/25 bg-[#140d08] px-4 py-2.5 text-sm font-semibold text-orange-100 transition hover:border-orange-400/50 disabled:cursor-not-allowed disabled:opacity-60 sm:rounded-2xl sm:px-5 sm:py-3"
             >
               {isLoadingRooms ? "Refreshing..." : "Refresh"}
             </button>
@@ -227,7 +227,7 @@ export default function RoomsPage() {
             <button
               onClick={createRoom}
               disabled={isCreating}
-              className="rounded-2xl bg-orange-500 px-5 py-3 text-sm font-bold text-black transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-bold text-black transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60 sm:rounded-2xl sm:px-5 sm:py-3"
             >
               {isCreating ? "Creating..." : "Create Room"}
             </button>
@@ -235,69 +235,69 @@ export default function RoomsPage() {
         </header>
 
         {error && (
-          <div className="mb-6 whitespace-pre-wrap rounded-2xl border border-red-500/30 bg-red-950/40 p-4 text-sm text-red-200">
+          <div className="mb-5 max-w-full whitespace-pre-wrap break-words rounded-2xl border border-red-500/30 bg-red-950/40 p-3 text-sm text-red-200 sm:mb-6 sm:p-4">
             {error}
           </div>
         )}
 
-        <section className="mb-8 grid gap-4 md:grid-cols-3">
-          <div className="rounded-3xl border border-orange-500/15 p-5">
-            <p className="text-sm text-orange-100/45">Open Rooms</p>
-            <p className="mt-2 text-3xl font-bold text-[#f5eee6]">
+        <section className="mb-5 grid grid-cols-3 gap-2 sm:mb-8 sm:gap-4">
+          <div className="rounded-2xl border border-orange-500/15 p-3 sm:rounded-3xl sm:p-5">
+            <p className="text-xs text-orange-100/45 sm:text-sm">Open</p>
+            <p className="mt-1 text-2xl font-bold text-[#f5eee6] sm:mt-2 sm:text-3xl">
               {rooms.length}
             </p>
           </div>
 
-          <div className="rounded-3xl border border-orange-500/15 p-5">
-            <p className="text-sm text-orange-100/45">Ready</p>
-            <p className="mt-2 text-3xl font-bold text-[#f5eee6]">
+          <div className="rounded-2xl border border-orange-500/15 p-3 sm:rounded-3xl sm:p-5">
+            <p className="text-xs text-orange-100/45 sm:text-sm">Ready</p>
+            <p className="mt-1 text-2xl font-bold text-[#f5eee6] sm:mt-2 sm:text-3xl">
               {readyRooms.length}
             </p>
           </div>
 
-          <div className="rounded-3xl border border-orange-500/15 p-5">
-            <p className="text-sm text-orange-100/45">Starting</p>
-            <p className="mt-2 text-3xl font-bold text-[#f5eee6]">
+          <div className="rounded-2xl border border-orange-500/15 p-3 sm:rounded-3xl sm:p-5">
+            <p className="text-xs text-orange-100/45 sm:text-sm">Starting</p>
+            <p className="mt-1 text-2xl font-bold text-[#f5eee6] sm:mt-2 sm:text-3xl">
               {startingRooms.length}
             </p>
           </div>
         </section>
 
-        <section className="rounded-3xl border border-orange-500/20 p-5">
-          <div className="mb-5 flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-[#f5eee6]">
+        <section className="rounded-2xl border border-orange-500/20 p-3 sm:rounded-3xl sm:p-5">
+          <div className="mb-4 flex items-start justify-between gap-3 sm:mb-5 sm:items-center">
+            <div className="min-w-0">
+              <h2 className="text-xl font-bold text-[#f5eee6] sm:text-2xl">
                 Open rooms
               </h2>
-              <p className="mt-1 text-sm text-orange-100/45">
+              <p className="mt-1 text-xs text-orange-100/45 sm:text-sm">
                 Rooms refresh every 10 seconds.
               </p>
             </div>
           </div>
 
           {isLoadingRooms && rooms.length === 0 ? (
-            <div className="rounded-2xl border border-orange-500/15 bg-[#120c08] p-8 text-center text-orange-100/50">
+            <div className="rounded-2xl border border-orange-500/15 bg-[#120c08] p-6 text-center text-sm text-orange-100/50 sm:p-8">
               Loading rooms...
             </div>
           ) : rooms.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-orange-500/25 bg-[#120c08] p-10 text-center">
-              <h3 className="text-xl font-bold text-[#f5eee6]">
+            <div className="rounded-2xl border border-dashed border-orange-500/25 bg-[#120c08] p-6 text-center sm:p-10">
+              <h3 className="text-lg font-bold text-[#f5eee6] sm:text-xl">
                 No rooms open yet
               </h3>
-              <p className="mt-2 text-orange-100/50">
+              <p className="mt-2 text-sm text-orange-100/50 sm:text-base">
                 Create a room to start a shared browser session.
               </p>
 
               <button
                 onClick={createRoom}
                 disabled={isCreating}
-                className="mt-5 rounded-2xl bg-orange-500 px-5 py-3 text-sm font-bold text-black transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-5 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-bold text-black transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60 sm:rounded-2xl sm:py-3"
               >
                 {isCreating ? "Creating..." : "Create First Room"}
               </button>
             </div>
           ) : (
-            <div className="grid gap-4">
+            <div className="grid gap-3 sm:gap-4">
               {rooms.map((room) => {
                 const ready = isRoomReady(room);
                 const roomUrl = getRoomUrl(room);
@@ -305,32 +305,32 @@ export default function RoomsPage() {
                 return (
                   <article
                     key={room.id}
-                    className="rounded-2xl border border-orange-500/15 bg-[#120c08] p-5 transition hover:border-orange-400/40"
+                    className="min-w-0 rounded-2xl border border-orange-500/15 bg-[#120c08] p-3 transition hover:border-orange-400/40 sm:p-5"
                   >
-                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <div className="mb-2 flex flex-wrap items-center gap-2">
-                          <h3 className="text-xl font-bold text-[#f5eee6]">
+                    <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2">
+                          <h3 className="min-w-0 max-w-full break-words text-base font-bold text-[#f5eee6] sm:text-xl">
                             {room.name}
                           </h3>
                           <StatusBadge room={room} />
                         </div>
 
-                        <p className="text-sm text-orange-100/45">
+                        <p className="text-xs text-orange-100/45 sm:text-sm">
                           Created {formatDate(room.created)}
                         </p>
 
-                        <p className="mt-2 max-w-2xl truncate text-xs text-orange-100/35">
+                        <p className="mt-2 max-w-full break-all text-xs leading-5 text-orange-100/35">
                           {roomUrl}
                         </p>
                       </div>
 
-                      <div className="flex flex-wrap gap-3">
+                      <div className="flex w-full shrink-0 sm:w-auto">
                         <a
                           href={roomUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className={`rounded-2xl px-5 py-3 text-sm font-bold transition ${
+                          className={`w-full rounded-xl px-4 py-2.5 text-center text-sm font-bold transition sm:w-auto sm:rounded-2xl sm:px-5 sm:py-3 ${
                             ready
                               ? "bg-orange-500 text-black hover:bg-orange-400"
                               : "cursor-not-allowed bg-[#1a110b] text-orange-100/35"
