@@ -33,29 +33,27 @@ resource "aws_security_group" "neko_sg" {
   description = "Security group for Neko Rooms"
 
   ingress {
-    description = "HTTP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
     description = "Neko Rooms HTTP"
     from_port   = 8080
     to_port     = 8080
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
   ingress {
-    description = "WebRTC UDP range"
-    from_port   = 59100
-    to_port     = 59149
-    protocol    = "udp"
+    description = "Neko WebRTC TCP"
+    from_port   = 59000
+    to_port     = 59049
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  ingress {
+    description = "Neko WebRTC UDP"
+    from_port   = 59000
+    to_port     = 59049
+    protocol    = "udp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
   ingress {
     description = "SSH from your IP only"
     from_port   = 22
@@ -122,6 +120,8 @@ resource "aws_instance" "neko" {
     public_ip              = aws_eip.neko_ip.public_ip
     data_volume_id         = aws_ebs_volume.neko_data.id
     data_volume_id_no_dash = replace(aws_ebs_volume.neko_data.id, "-", "")
+
+    docker_compose_yml = file("${path.module}/../neko-rooms-club/docker-compose.yml")
   })
 
   tags = {

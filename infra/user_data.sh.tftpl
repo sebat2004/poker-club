@@ -1,89 +1,127 @@
-#!/bin/bash
-set -euxo pipefail
+#!/usr/bin/env bash
+set -euo pipefail
 
 PUBLIC_IP="${public_ip}"
 DATA_VOLUME_ID="${data_volume_id}"
 DATA_VOLUME_ID_NO_DASH="${data_volume_id_no_dash}"
 
-NEKO_DIR="/opt/neko-rooms"
-NEKO_DATA_DIR="/opt/neko-rooms/data"
-NEKO_EPR="59100-59149"
+NEKO_ROOT="/opt/neko-rooms"
+NEKO_DATA="/opt/neko-rooms/data"
 
-apt-get update
-apt-get install -y ca-certificates curl git docker.io rsync
+NEKO_ROOMS_IMAGE="m1k1o/neko-rooms:latest"
+NEKO_FIREFOX_IMAGE="sebat2004/neko-firefox-xprintidle:latest"
+
+echo "[user-data] Starting Neko Rooms setup..."
+
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update -y
+apt-get install -y \
+  ca-certificates \
+  curl \
+  gnupg \
+  lsb-release \
+  jq \
+  unzip \
+  cron \
+  xfsprogs \
+  rsync
+
+echo "[user-data] Installing Docker..."
+
+install -m 0755 -d /etc/apt/keyrings
+
+if [ ! -f /etc/apt/keyrings/docker.gpg ]; then
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+    | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  chmod a+r /etc/apt/keyrings/docker.gpg
+fi
+
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  > /etc/apt/sources.list.d/docker.list
+
+apt-get update -y
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 systemctl enable docker
 systemctl start docker
 
 usermod -aG docker ubuntu || true
 
-# Install Docker Compose plugin manually
-mkdir -p /usr/local/lib/docker/cli-plugins
+echo "[user-data] Creating base directories..."
 
-if [ ! -f /usr/local/lib/docker/cli-plugins/docker-compose ]; then
-  curl -SL https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-x86_64 \
-    -o /usr/local/lib/docker/cli-plugins/docker-compose
+mkdir -p "$NEKO_ROOT"
+mkdir -p "$NEKO_ROOT/bin"
+mkdir -p "$NEKO_DATA"
 
-  chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-fi
+echo "[user-data] Waiting for EBS data volume..."
 
-mkdir -p "$NEKO_DIR"
-mkdir -p "$NEKO_DATA_DIR"
-
-# Wait for the attached EBS data volume.
-# On Nitro instances, EBS volumes usually appear under /dev/disk/by-id/.
-VOLUME_BY_ID="/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$DATA_VOLUME_ID_NO_DASH"
+DATA_DEVICE=""
 
 for i in $(seq 1 60); do
-  if [ -e "$VOLUME_BY_ID" ]; then
-    DATA_DEVICE="$VOLUME_BY_ID"
+  if [ -e "/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$${DATA_VOLUME_ID_NO_DASH}" ]; then
+    DATA_DEVICE="/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$${DATA_VOLUME_ID_NO_DASH}"
     break
   fi
 
-  # fallback: search by volume id
-  DATA_DEVICE="$(find /dev/disk/by-id -name "*$DATA_VOLUME_ID_NO_DASH*" 2>/dev/null | head -n 1 || true)"
-
-  if [ -n "$DATA_DEVICE" ] && [ -e "$DATA_DEVICE" ]; then
+  if [ -e "/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$${DATA_VOLUME_ID}" ]; then
+    DATA_DEVICE="/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$${DATA_VOLUME_ID}"
     break
   fi
 
-  echo "Waiting for EBS volume $DATA_VOLUME_ID to attach..."
-  sleep 5
+  DATA_DEVICE_CANDIDATE=$(lsblk -ndo NAME,TYPE | awk '$2 == "disk" {print "/dev/" $1}' | grep -v -E '^/dev/nvme0n1$' | head -n 1 || true)
+
+  if [ -n "$$DATA_DEVICE_CANDIDATE" ] && [ -b "$$DATA_DEVICE_CANDIDATE" ]; then
+    DATA_DEVICE="$$DATA_DEVICE_CANDIDATE"
+    break
+  fi
+
+  echo "[user-data] Waiting for volume device... attempt $i"
+  sleep 2
 done
 
 if [ -z "$${DATA_DEVICE:-}" ] || [ ! -e "$DATA_DEVICE" ]; then
-  echo "Could not find attached EBS volume $DATA_VOLUME_ID"
-  ls -la /dev/disk/by-id || true
+  echo "[user-data] ERROR: Could not find EBS data volume device"
+  lsblk
   exit 1
 fi
 
-# Format only if the volume is brand new and has no filesystem.
-if ! blkid "$DATA_DEVICE"; then
+echo "[user-data] Found data device: $DATA_DEVICE"
+
+if ! blkid "$DATA_DEVICE" >/dev/null 2>&1; then
+  echo "[user-data] Formatting data volume..."
   mkfs.ext4 -F "$DATA_DEVICE"
 fi
 
-DATA_UUID="$(blkid -s UUID -o value "$DATA_DEVICE")"
+mkdir -p "$NEKO_DATA"
 
-mkdir -p "$NEKO_DATA_DIR"
-
-if ! grep -q "$DATA_UUID" /etc/fstab; then
-  echo "UUID=$DATA_UUID $NEKO_DATA_DIR ext4 defaults,nofail 0 2" >> /etc/fstab
+if ! grep -q "$NEKO_DATA" /etc/fstab; then
+  DATA_UUID=$(blkid -s UUID -o value "$DATA_DEVICE")
+  echo "UUID=$DATA_UUID $NEKO_DATA ext4 defaults,nofail 0 2" >> /etc/fstab
 fi
 
 mount -a
 
-# Create Neko Rooms storage folders.
-mkdir -p "$NEKO_DATA_DIR/templates/firefox-policy"
-mkdir -p "$NEKO_DATA_DIR/public/firefox-profile"
-mkdir -p "$NEKO_DATA_DIR/public/golden-firefox-profile"
-mkdir -p "$NEKO_DATA_DIR/public/profile-clones"
+echo "[user-data] Ensuring storage directories exist on mounted volume..."
 
-# Firefox policy:
-# - opens GTO Wizard by default
-# - avoids crash/session restore prompt
-# - keeps cookies/login data
-# - blocks most non-GTO browsing
-cat > "$NEKO_DATA_DIR/templates/firefox-policy/policies.json" <<'POLICY'
+mkdir -p "$NEKO_DATA/public"
+mkdir -p "$NEKO_DATA/public/firefox-profile"
+mkdir -p "$NEKO_DATA/public/golden-firefox-profile"
+mkdir -p "$NEKO_DATA/public/profile-clones"
+mkdir -p "$NEKO_DATA/templates"
+mkdir -p "$NEKO_DATA/templates/firefox-policy"
+
+for n in 1 2 3 4 5; do
+  mkdir -p "$NEKO_DATA/public/profile-clones/gto-profile-$n"
+done
+
+chown -R 1000:1000 "$NEKO_DATA/public" || true
+chmod -R 755 "$NEKO_DATA" || true
+
+echo "[user-data] Writing Firefox policy..."
+
+cat > "$NEKO_DATA/templates/firefox-policy/policies.json" <<'EOF'
 {
   "policies": {
     "Homepage": {
@@ -102,6 +140,29 @@ cat > "$NEKO_DATA_DIR/templates/firefox-policy/policies.json" <<'POLICY'
       "SiteSettings": false
     },
     "DisablePrivateBrowsing": true,
+    "DisableDeveloperTools": true,
+    "DisableFirefoxAccounts": true,
+    "DisableFirefoxScreenshots": true,
+    "DisableMasterPasswordCreation": true,
+    "DisableProfileImport": true,
+    "DisableSafeMode": true,
+    "DisableSystemAddonUpdate": true,
+    "BlockAboutConfig": true,
+    "BlockAboutProfiles": true,
+    "BlockAboutSupport": true,
+    "NewTabPage": false,
+    "WebsiteFilter": {
+      "Block": ["*"],
+      "Exceptions": [
+        "https://www.gtowizard.com/*",
+        "https://app.gtowizard.com/*",
+        "https://accounts.google.com/*",
+        "https://*.google.com/*",
+        "https://*.gstatic.com/*",
+        "https://*.googleusercontent.com/*",
+        "https://*.googleapis.com/*"
+      ]
+    },
     "Preferences": {
       "browser.startup.page": {
         "Value": 1,
@@ -118,21 +179,30 @@ cat > "$NEKO_DATA_DIR/templates/firefox-policy/policies.json" <<'POLICY'
       "browser.sessionstore.max_resumed_crashes": {
         "Value": 0,
         "Status": "locked"
+      },
+      "browser.tabs.warnOnClose": {
+        "Value": false,
+        "Status": "locked"
+      },
+      "browser.warnOnQuit": {
+        "Value": false,
+        "Status": "locked"
+      },
+      "browser.newtabpage.enabled": {
+        "Value": false,
+        "Status": "locked"
       }
     }
   }
 }
-POLICY
+EOF
 
-chmod 644 "$NEKO_DATA_DIR/templates/firefox-policy/policies.json"
+echo "[user-data] Writing Firefox kiosk supervisord config..."
 
-cat > "$NEKO_DATA_DIR/templates/firefox.conf" <<'FIREFOXCONF'
+cat > "$NEKO_DATA/templates/firefox.conf" <<'EOF'
 [program:firefox]
 environment=HOME="/home/%(ENV_USER)s",USER="%(ENV_USER)s",DISPLAY="%(ENV_DISPLAY)s"
-command=/usr/bin/firefox
-  --no-remote
-  --kiosk
-  https://www.gtowizard.com
+command=/usr/bin/firefox --no-remote -P default --display=%(ENV_DISPLAY)s -setDefaultBrowser -width 1280 -height 720 --kiosk https://www.gtowizard.com
 stopsignal=INT
 autorestart=true
 priority=800
@@ -141,31 +211,27 @@ stdout_logfile=/var/log/neko/firefox.log
 stdout_logfile_maxbytes=100MB
 stdout_logfile_backups=10
 redirect_stderr=true
-FIREFOXCONF
 
-chmod 644 "$NEKO_DATA_DIR/templates/firefox.conf"
+[program:openbox]
+environment=HOME="/home/%(ENV_USER)s",USER="%(ENV_USER)s",DISPLAY="%(ENV_DISPLAY)s"
+command=/usr/bin/openbox --config-file /etc/neko/openbox.xml
+autorestart=true
+priority=300
+user=%(ENV_USER)s
+stdout_logfile=/var/log/neko/openbox.log
+stdout_logfile_maxbytes=100MB
+stdout_logfile_backups=10
+redirect_stderr=true
+EOF
 
-# Set profile permissions for the Neko container user.
-chown -R 1000:1000 "$NEKO_DATA_DIR/public/firefox-profile"
-chown -R 1000:1000 "$NEKO_DATA_DIR/public/golden-firefox-profile"
-chown -R 1000:1000 "$NEKO_DATA_DIR/public/profile-clones"
-chmod -R 775 "$NEKO_DATA_DIR/public/firefox-profile"
-chmod -R 775 "$NEKO_DATA_DIR/public/golden-firefox-profile"
-chmod -R 775 "$NEKO_DATA_DIR/public/profile-clones"
+echo "[user-data] Writing profile clone script..."
 
-# Helper script:
-# After logging into GTO Wizard once in /public/firefox-profile,
-# run this to clone that logged-in profile into gto-profile-1..N.
-mkdir -p "$NEKO_DIR/bin"
-
-cat > "$NEKO_DIR/bin/clone-gto-profiles.sh" <<'CLONE_SCRIPT'
-#!/bin/bash
-set -euxo pipefail
+cat > "$NEKO_ROOT/bin/clone-gto-profiles.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
 
 SOURCE_PROFILE="$${1:-/opt/neko-rooms/data/public/firefox-profile}"
 COUNT="$${2:-5}"
-
-GOLDEN_PROFILE="/opt/neko-rooms/data/public/golden-firefox-profile"
 CLONES_DIR="/opt/neko-rooms/data/public/profile-clones"
 
 if [ ! -d "$SOURCE_PROFILE" ]; then
@@ -173,159 +239,152 @@ if [ ! -d "$SOURCE_PROFILE" ]; then
   exit 1
 fi
 
-# Do not clone lock/session restore files.
-mkdir -p "$GOLDEN_PROFILE"
-rsync -a --delete "$SOURCE_PROFILE/" "$GOLDEN_PROFILE/"
-
-find "$GOLDEN_PROFILE" \
-  \( -name "sessionstore.jsonlz4" \
-  -o -name "recovery.jsonlz4" \
-  -o -name "recovery.baklz4" \
-  -o -name "previous.jsonlz4" \
-  -o -name "upgrade.jsonlz4-*" \
-  -o -name ".parentlock" \
-  -o -name "lock" \
-  -o -name "*.lock" \) -delete
-
-cat > "$GOLDEN_PROFILE/user.js" <<'USERJS'
-user_pref("browser.startup.page", 1);
-user_pref("browser.startup.homepage", "https://www.gtowizard.com");
-user_pref("browser.sessionstore.resume_from_crash", false);
-user_pref("browser.sessionstore.max_resumed_crashes", 0);
-user_pref("browser.warnOnQuit", false);
-user_pref("browser.warnOnQuitShortcut", false);
-user_pref("browser.newtabpage.enabled", false);
-USERJS
-
 mkdir -p "$CLONES_DIR"
 
 for i in $(seq 1 "$COUNT"); do
-  DEST_PROFILE="$CLONES_DIR/gto-profile-$i"
+  DEST="$CLONES_DIR/gto-profile-$i"
 
-  mkdir -p "$DEST_PROFILE"
+  echo "Creating clone: $DEST"
 
-  rsync -a --delete "$GOLDEN_PROFILE/" "$DEST_PROFILE/"
+  rm -rf "$DEST"
+  mkdir -p "$DEST"
 
-  find "$DEST_PROFILE" \
-    \( -name "sessionstore.jsonlz4" \
-    -o -name "recovery.jsonlz4" \
-    -o -name "recovery.baklz4" \
-    -o -name "previous.jsonlz4" \
-    -o -name "upgrade.jsonlz4-*" \
-    -o -name ".parentlock" \
-    -o -name "lock" \
-    -o -name "*.lock" \) -delete
+  rsync -a --delete "$SOURCE_PROFILE/" "$DEST/"
 
-  cat > "$DEST_PROFILE/user.js" <<'USERJS'
-user_pref("browser.startup.page", 1);
-user_pref("browser.startup.homepage", "https://www.gtowizard.com");
-user_pref("browser.sessionstore.resume_from_crash", false);
-user_pref("browser.sessionstore.max_resumed_crashes", 0);
-user_pref("browser.warnOnQuit", false);
-user_pref("browser.warnOnQuitShortcut", false);
-user_pref("browser.newtabpage.enabled", false);
-USERJS
+  rm -f "$DEST/lock" || true
+  rm -f "$DEST/.parentlock" || true
+  rm -f "$DEST/parent.lock" || true
+  rm -f "$DEST/sessionstore.jsonlz4" || true
+  rm -rf "$DEST/sessionstore-backups" || true
+  rm -rf "$DEST/startupCache" || true
 
-  chown -R 1000:1000 "$DEST_PROFILE"
-  chmod -R 775 "$DEST_PROFILE"
+  chown -R 1000:1000 "$DEST" || true
 done
 
-chown -R 1000:1000 "$GOLDEN_PROFILE"
-chmod -R 775 "$GOLDEN_PROFILE"
+echo "Done cloning $COUNT profiles."
+EOF
 
-echo "Created $COUNT cloned GTO profiles in $CLONES_DIR"
-CLONE_SCRIPT
+chmod +x "$NEKO_ROOT/bin/clone-gto-profiles.sh"
 
-chmod +x "$NEKO_DIR/bin/clone-gto-profiles.sh"
+echo "[user-data] Writing idle cleanup script..."
 
-# Create empty profile clone folders so the website can mount them immediately.
-for i in 1 2 3 4 5; do
-  mkdir -p "$NEKO_DATA_DIR/public/profile-clones/gto-profile-$i"
+cat > "$NEKO_ROOT/bin/cleanup-idle-rooms.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
 
-  cat > "$NEKO_DATA_DIR/public/profile-clones/gto-profile-$i/user.js" <<'USERJS'
-user_pref("browser.startup.page", 1);
-user_pref("browser.startup.homepage", "https://www.gtowizard.com");
-user_pref("browser.sessionstore.resume_from_crash", false);
-user_pref("browser.sessionstore.max_resumed_crashes", 0);
-user_pref("browser.warnOnQuit", false);
-user_pref("browser.warnOnQuitShortcut", false);
-user_pref("browser.newtabpage.enabled", false);
-USERJS
+IDLE_LIMIT_MS=$((3 * 60 * 1000))
 
-  chown -R 1000:1000 "$NEKO_DATA_DIR/public/profile-clones/gto-profile-$i"
-  chmod -R 775 "$NEKO_DATA_DIR/public/profile-clones/gto-profile-$i"
+echo "[$(date -Is)] Checking Neko room idle times..."
+
+containers=$(docker ps \
+  --filter "label=club=poker-club" \
+  --filter "label=purpose=gto-wizard" \
+  --format "{{.Names}}")
+
+if [ -z "$containers" ]; then
+  echo "[$(date -Is)] No poker club room containers found by label. Trying name fallback..."
+
+  containers=$(docker ps \
+    --format "{{.Names}}" \
+    | grep -E "neko-rooms.*poker|poker-room|gto" || true)
+fi
+
+if [ -z "$containers" ]; then
+  echo "[$(date -Is)] No poker club room containers found."
+  exit 0
+fi
+
+for container in $containers; do
+  echo "[$(date -Is)] Checking $container..."
+
+  idle_ms=$(docker exec "$container" bash -lc 'DISPLAY="$${DISPLAY:-:0}" xprintidle' 2>/dev/null || echo "")
+
+  if ! [[ "$idle_ms" =~ ^[0-9]+$ ]]; then
+    echo "[$(date -Is)] Could not read idle time for $container. Skipping."
+    continue
+  fi
+
+  echo "[$(date -Is)] $container idle for $${idle_ms}ms"
+
+  if [ "$idle_ms" -gt "$IDLE_LIMIT_MS" ]; then
+    echo "[$(date -Is)] Removing idle room container: $container"
+    docker rm -f "$container"
+  fi
 done
+EOF
 
-cat > "$NEKO_DIR/.env" <<ENV
-NEKO_PUBLIC_IP=$PUBLIC_IP
-NEKO_DATA_DIR=$NEKO_DATA_DIR
-NEKO_ROOMS_EPR=$NEKO_EPR
-ENV
+chmod +x "$NEKO_ROOT/bin/cleanup-idle-rooms.sh"
 
-cat > "$NEKO_DIR/docker-compose.yml" <<COMPOSE
-version: "3.5"
+echo "[user-data] Installing idle cleanup cron..."
 
-networks:
-  default:
-    attachable: true
-    name: "neko-rooms-net"
+cat > /etc/cron.d/neko-idle-cleanup <<'EOF'
+* * * * * root /opt/neko-rooms/bin/cleanup-idle-rooms.sh >> /var/log/neko-idle-cleanup.log 2>&1
+EOF
 
-services:
-  neko-rooms:
-    image: "m1k1o/neko-rooms:latest"
-    restart: "unless-stopped"
+chmod 0644 /etc/cron.d/neko-idle-cleanup
+systemctl enable cron
+systemctl restart cron
 
-    environment:
-      - "TZ=America/Los_Angeles"
+echo "[user-data] Writing Neko Rooms env..."
 
-      - "NEKO_ROOMS_MUX=true"
-      - "NEKO_ROOMS_EPR=$NEKO_EPR"
-      - "NEKO_ROOMS_NAT1TO1=$PUBLIC_IP"
-      - "NEKO_ROOMS_INSTANCE_URL=http://$PUBLIC_IP:8080/"
-      - "NEKO_ROOMS_INSTANCE_NETWORK=neko-rooms-net"
+cat > "$NEKO_ROOT/.env" <<EOF
+PUBLIC_IP=$PUBLIC_IP
+NEKO_ROOMS_PUBLIC_URL=http://$PUBLIC_IP:8080
 
-      - "NEKO_ROOMS_TRAEFIK_ENABLED=false"
-      - "NEKO_ROOMS_PATH_PREFIX=/room/"
+NEKO_ROOMS_IMAGE=$NEKO_ROOMS_IMAGE
+NEKO_FIREFOX_IMAGE=$NEKO_FIREFOX_IMAGE
 
-      - "NEKO_ROOMS_NEKO_IMAGES=ghcr.io/m1k1o/neko/firefox:latest"
+NEKO_ROOMS_MOUNTS_WHITELIST=/opt/neko-rooms/data
+NEKO_ROOMS_STORAGE_ENABLED=true
+NEKO_ROOMS_STORAGE_EXTERNAL=/opt/neko-rooms/data
+NEKO_ROOMS_STORAGE_INTERNAL=/data
+EOF
 
-      - "NEKO_ROOMS_STORAGE_ENABLED=true"
-      - "NEKO_ROOMS_STORAGE_INTERNAL=/data"
-      - "NEKO_ROOMS_STORAGE_EXTERNAL=$NEKO_DATA_DIR"
-      - "NEKO_ROOMS_MOUNTS_WHITELIST=$NEKO_DATA_DIR"
+echo "[user-data] Writing Docker Compose from tracked repo file..."
 
-    ports:
-      - "8080:8080"
+cat > "$NEKO_ROOT/docker-compose.yml" <<'EOF'
+${docker_compose_yml}
+EOF
 
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock"
-      - "$NEKO_DATA_DIR:/data"
-COMPOSE
+echo "[user-data] Writing systemd service..."
 
-# Pre-pull images so creating rooms is faster.
-docker pull m1k1o/neko-rooms:latest
-docker pull ghcr.io/m1k1o/neko/firefox:latest
-
-# Remove stale dynamic rooms on boot.
-docker ps -a --format "{{.Names}}" | grep "^neko-rooms-poker-room" | xargs -r docker rm -f || true
-
-cat > /etc/systemd/system/neko-rooms.service <<SERVICE
+cat > /etc/systemd/system/neko-rooms.service <<'EOF'
 [Unit]
 Description=Neko Rooms
 Requires=docker.service
-After=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=$NEKO_DIR
-ExecStart=/usr/bin/docker compose --env-file .env up -d
-ExecStop=/usr/bin/docker compose --env-file .env down
 RemainAfterExit=yes
+WorkingDirectory=/opt/neko-rooms
+ExecStart=/usr/bin/docker compose up -d
+ExecStop=/usr/bin/docker compose down
+TimeoutStartSec=0
 
 [Install]
 WantedBy=multi-user.target
-SERVICE
+EOF
 
 systemctl daemon-reload
 systemctl enable neko-rooms.service
+
+echo "[user-data] Pulling Docker images..."
+
+docker pull m1k1o/neko-rooms:latest || true
+docker pull ghcr.io/m1k1o/neko/firefox:latest || true
+docker pull sebat2004/neko-firefox-xprintidle:latest || true
+
+echo "[user-data] Starting Neko Rooms..."
+
 systemctl restart neko-rooms.service
+
+echo "[user-data] Final status checks..."
+
+findmnt /opt/neko-rooms/data || true
+docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" || true
+systemctl status neko-rooms.service --no-pager || true
+systemctl status cron --no-pager || true
+
+echo "[user-data] Setup complete."

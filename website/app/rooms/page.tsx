@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import StopServerButton from "../components/StopServerButton";
 
 type Room = {
   id: string;
   name: string;
   url: string;
+  public_url?: string;
   running: boolean;
   paused: boolean;
-  isReady: boolean;
+  is_ready: boolean;
+  ready?: boolean;
+  display_status?: string;
   status: string;
   created?: string;
   labels?: Record<string, string>;
@@ -20,6 +22,7 @@ type Room = {
 
 type RoomsApiResponse = {
   rooms?: Room[];
+  ec2_state?: string;
   server?: {
     state?: string;
     online?: boolean;
@@ -50,8 +53,16 @@ async function readJsonResponse(response: Response) {
   }
 }
 
+function isRoomReady(room: Room) {
+  return room.is_ready === true;
+}
+
+function getRoomUrl(room: Room) {
+  return room.public_url || room.url;
+}
+
 function StatusBadge({ room }: { room: Room }) {
-  if (room.isReady) {
+  if (isRoomReady(room)) {
     return (
       <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/30">
         Ready
@@ -82,13 +93,15 @@ export default function RoomsPage() {
   const [statusMessage, setStatusMessage] = useState("");
 
   function updateStatusMessage(data: RoomsApiResponse) {
-    if (data.server?.state === "stopped") {
+    const state = data.server?.state || data.ec2_state;
+
+    if (state === "stopped") {
       setStatusMessage("Server is asleep. Create a room to wake it up.");
-    } else if (data.server?.state === "stopping") {
+    } else if (state === "stopping") {
       setStatusMessage("Server is shutting down.");
-    } else if (data.server?.state === "pending") {
+    } else if (state === "pending") {
       setStatusMessage("Server is starting...");
-    } else if (data.server?.online) {
+    } else if (state === "running" || data.server?.online) {
       setStatusMessage("Server is online.");
     } else {
       setStatusMessage(data.server?.message ?? "Server is offline.");
@@ -96,70 +109,65 @@ export default function RoomsPage() {
   }
 
   async function loadRooms() {
-		setIsLoadingRooms(true);
-		setError("");
+    setIsLoadingRooms(true);
+    setError("");
 
-	try {
-			const response = await fetch("/api/rooms", {
-				cache: "no-store",
-			});
+    try {
+      const response = await fetch("/api/rooms", {
+        cache: "no-store",
+      });
 
-			const data = (await readJsonResponse(response)) as RoomsApiResponse;
+      const data = (await readJsonResponse(response)) as RoomsApiResponse;
 
-			setRooms(data.rooms ?? []);
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to load rooms");
+      }
 
-			if (data.server?.message) {
-				setStatusMessage(data.server.message);
-			} else if (data.server?.state === "stopped") {
-				setStatusMessage("Server is asleep. Create a room to wake it up.");
-			} else if (data.server?.online) {
-				setStatusMessage("Server is online.");
-			} else {
-				setStatusMessage("Server is offline.");
-			}
-
-			if (!response.ok) {
-				throw new Error(data.error || "Failed to load rooms");
-			}
-		} catch (err) {
-			setRooms([]);
-			setStatusMessage("Server is offline.");
-			setError(err instanceof Error ? err.message : "Something went wrong");
-		} finally {
-			setIsLoadingRooms(false);
-		}
-	}
+      setRooms(data.rooms ?? []);
+      updateStatusMessage(data);
+    } catch (err) {
+      setRooms([]);
+      setStatusMessage("Server is offline.");
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setIsLoadingRooms(false);
+    }
+  }
 
   async function createRoom() {
-		setIsCreating(true);
-		setError("");
-		setStatusMessage("Starting server. This can take about 1-2 minutes...");
+    setIsCreating(true);
+    setError("");
+    setStatusMessage("Starting server. This can take about 1-2 minutes...");
 
-		try {
-			const response = await fetch("/api/rooms", {
-				method: "POST",
-			});
+    try {
+      const response = await fetch("/api/rooms", {
+        method: "POST",
+      });
 
-			const data = await readJsonResponse(response);
+      const data = await readJsonResponse(response);
 
-			if (!response.ok) {
-				const details =
-					typeof data.details === "string"
-						? data.details
-						: JSON.stringify(data.details, null, 2);
+      if (!response.ok) {
+        const details =
+          typeof data.details === "string"
+            ? data.details
+            : data.details
+              ? JSON.stringify(data.details, null, 2)
+              : "";
 
-				throw new Error(`${data.error || "Failed to create room"}: ${details}`);
-			}
+        throw new Error(
+          `${data.error || "Failed to create room"}${details ? `: ${details}` : ""}`,
+        );
+      }
 
-			setStatusMessage("Room created. Refreshing rooms...");
-			await loadRooms();
-		} catch (err) {
-			setStatusMessage("Could not create room.");
-			setError(err instanceof Error ? err.message : "Something went wrong");
-		} finally {
-			setIsCreating(false);
-		}
-	}
+      setStatusMessage("Room created. Refreshing rooms...");
+      await loadRooms();
+    } catch (err) {
+      setStatusMessage("Could not create room.");
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setIsCreating(false);
+    }
+  }
 
   useEffect(() => {
     loadRooms();
@@ -171,8 +179,8 @@ export default function RoomsPage() {
     return () => clearInterval(interval);
   }, []);
 
-  const readyRooms = rooms.filter((room) => room.isReady);
-  const startingRooms = rooms.filter((room) => room.running && !room.isReady);
+  const readyRooms = rooms.filter(isRoomReady);
+  const startingRooms = rooms.filter((room) => room.running && !isRoomReady(room));
 
   return (
     <main className="min-h-screen bg-[#070707] text-white">
@@ -221,8 +229,6 @@ export default function RoomsPage() {
             >
               {isCreating ? "Creating..." : "Create Room"}
             </button>
-
-            <StopServerButton />
           </div>
         </header>
 
@@ -280,49 +286,54 @@ export default function RoomsPage() {
             </div>
           ) : (
             <div className="grid gap-4">
-              {rooms.map((room) => (
-                <article
-                  key={room.id}
-                  className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition hover:bg-white/[0.07]"
-                >
-                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <div className="mb-2 flex flex-wrap items-center gap-2">
-                        <h3 className="text-xl font-bold">{room.name}</h3>
-                        <StatusBadge room={room} />
+              {rooms.map((room) => {
+                const ready = isRoomReady(room);
+                const roomUrl = getRoomUrl(room);
+
+                return (
+                  <article
+                    key={room.id}
+                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition hover:bg-white/[0.07]"
+                  >
+                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          <h3 className="text-xl font-bold">{room.name}</h3>
+                          <StatusBadge room={room} />
+                        </div>
+
+                        <p className="text-sm text-zinc-400">
+                          Created {formatDate(room.created)}
+                        </p>
+
+                        <p className="mt-2 max-w-2xl truncate text-xs text-zinc-500">
+                          {roomUrl}
+                        </p>
                       </div>
 
-                      <p className="text-sm text-zinc-400">
-                        Created {formatDate(room.created)}
-                      </p>
-
-                      <p className="mt-2 max-w-2xl truncate text-xs text-zinc-500">
-                        {room.url}
-                      </p>
+                      <div className="flex flex-wrap gap-3">
+                        <a
+                          href={roomUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={`rounded-2xl px-5 py-3 text-sm font-bold transition ${
+                            ready
+                              ? "bg-white text-zinc-950 hover:bg-zinc-200"
+                              : "cursor-not-allowed bg-white/10 text-zinc-500"
+                          }`}
+                          onClick={(event) => {
+                            if (!ready) {
+                              event.preventDefault();
+                            }
+                          }}
+                        >
+                          {ready ? "Open Room" : "Starting..."}
+                        </a>
+                      </div>
                     </div>
-
-                    <div className="flex flex-wrap gap-3">
-                      <a
-                        href={room.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className={`rounded-2xl px-5 py-3 text-sm font-bold transition ${
-                          room.isReady
-                            ? "bg-white text-zinc-950 hover:bg-zinc-200"
-                            : "cursor-not-allowed bg-white/10 text-zinc-500"
-                        }`}
-                        onClick={(event) => {
-                          if (!room.isReady) {
-                            event.preventDefault();
-                          }
-                        }}
-                      >
-                        {room.isReady ? "Open Room" : "Starting..."}
-                      </a>
-                    </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>

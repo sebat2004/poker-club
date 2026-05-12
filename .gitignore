@@ -108,3 +108,4 @@ Thumbs.db
 tmp/
 temp/
 .cache/
+.vercel

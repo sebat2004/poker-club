@@ -1,15 +1,11 @@
 import { NextResponse } from "next/server";
 import {
   DescribeInstancesCommand,
-  EC2Client,
   StopInstancesCommand,
 } from "@aws-sdk/client-ec2";
-import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
+import { createEc2Client } from "@/app/lib/ec2";
 
 export const runtime = "nodejs";
-
-const AWS_REGION = process.env.AWS_REGION!;
-const AWS_ROLE_ARN = process.env.AWS_ROLE_ARN!;
 
 type NekoRoom = {
   id?: string;
@@ -24,12 +20,7 @@ type NekoRoom = {
   [key: string]: unknown;
 };
 
-export const ec2 = new EC2Client({
-  region: AWS_REGION,
-  credentials: awsCredentialsProvider({
-    roleArn: AWS_ROLE_ARN,
-  }),
-});
+const ec2 = createEc2Client()
 
 // This works for local/dev or a long-running Node server.
 // For Vercel/serverless, use DynamoDB/KV instead because memory can reset.

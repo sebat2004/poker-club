@@ -1,0 +1,7 @@
+FROM ghcr.io/m1k1o/neko/firefox:latest
+
+USER root
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends xprintidle \
+  && rm -rf /var/lib/apt/lists/*

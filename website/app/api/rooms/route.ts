@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import {
   DescribeInstancesCommand,
   EC2Client,
@@ -8,147 +7,190 @@ import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
 
 export const runtime = "nodejs";
 
-const AWS_REGION = process.env.AWS_REGION!;
-const AWS_ROLE_ARN = process.env.AWS_ROLE_ARN!;
+const AWS_REGION = process.env.AWS_REGION || "us-west-2";
+const AWS_ROLE_ARN = process.env.AWS_ROLE_ARN;
+const NEKO_INSTANCE_ID = process.env.NEKO_INSTANCE_ID;
+const NEKO_ROOMS_PUBLIC_URL = process.env.NEKO_ROOMS_PUBLIC_URL;
 
-type NekoRoom = {
-  id?: string;
-  name?: string;
-  url?: string;
-  running?: boolean;
-  paused?: boolean;
-  is_ready?: boolean;
-  status?: string;
-  created?: string;
-  labels?: Record<string, string>;
-  [key: string]: unknown;
-};
+const NEKO_ROOM_IMAGE =
+  process.env.NEKO_ROOM_IMAGE?.trim() ||
+  "sebat2004/neko-firefox-xprintidle:latest";
 
-type FormattedRoom = {
-  id: string;
-  name: string;
-  url: string;
-  running: boolean;
-  paused: boolean;
-  isReady: boolean;
-  status: string;
-  created?: string;
-  labels: Record<string, string>;
-  userPassword: string;
-  adminPassword: string;
-};
+const GTO_PROFILE_IDS = (
+  process.env.GTO_PROFILE_IDS ||
+  "gto-profile-1,gto-profile-2,gto-profile-3,gto-profile-4,gto-profile-5"
+)
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
 
-export const ec2 = new EC2Client({
-  region: AWS_REGION,
-  credentials: awsCredentialsProvider({
-    roleArn: AWS_ROLE_ARN,
-  }),
-});
+function createEc2Client() {
+  const isVercel = Boolean(process.env.VERCEL);
 
-const DEFAULT_GTO_PROFILE_IDS = [
-  "gto-profile-1",
-  "gto-profile-2",
-  "gto-profile-3",
-  "gto-profile-4",
-  "gto-profile-5",
-];
+  return new EC2Client({
+    region: AWS_REGION,
+    ...(isVercel && AWS_ROLE_ARN
+      ? {
+          credentials: awsCredentialsProvider({
+            roleArn: AWS_ROLE_ARN,
+          }),
+        }
+      : {}),
+  });
+}
 
-const GTO_PROFILE_IDS = process.env.GTO_PROFILE_IDS
-  ? process.env.GTO_PROFILE_IDS.split(",")
-      .map((profileId) => profileId.trim())
-      .filter(Boolean)
-  : DEFAULT_GTO_PROFILE_IDS;
+const ec2 = createEc2Client();
+
+function requireEnv(value: string | undefined, name: string) {
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+
+  return value;
+}
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function safeJsonParse(text: string) {
+function getBaseUrl() {
+  return requireEnv(NEKO_ROOMS_PUBLIC_URL, "NEKO_ROOMS_PUBLIC_URL").replace(
+    /\/$/,
+    "",
+  );
+}
+
+function buildPublicRoomUrl(roomName: string) {
+  return `${getBaseUrl()}/room/${roomName}/`;
+}
+
+function normalizeNekoRoomUrl(rawUrl: string | undefined, roomName: string) {
+  const baseUrl = getBaseUrl();
+
+  if (!rawUrl) {
+    return buildPublicRoomUrl(roomName);
+  }
+
   try {
-    return text ? JSON.parse(text) : null;
+    const parsedRaw = new URL(rawUrl);
+    const parsedBase = new URL(baseUrl);
+
+    parsedRaw.protocol = parsedBase.protocol;
+    parsedRaw.host = parsedBase.host;
+
+    return parsedRaw.toString();
   } catch {
-    return null;
+    return buildPublicRoomUrl(roomName);
   }
 }
 
-function formatRoom(room: NekoRoom): FormattedRoom {
+function getRoomName(room: any) {
+  return (
+    room?.name ||
+    room?.id ||
+    room?.slug ||
+    room?.path?.replace(/^\/room\//, "").replace(/^\/+/, "").replace(/\/+$/, "")
+  );
+}
+
+function isRoomReady(room: any) {
+  return room?.is_ready === true;
+}
+
+function normalizeRoom(room: any) {
+  const name = getRoomName(room);
+  const ready = isRoomReady(room);
+
+  const publicUrl = name
+    ? normalizeNekoRoomUrl(room?.url || room?.public_url, name)
+    : room?.url || room?.public_url;
+
   return {
-    id: room.id ?? "",
-    name: room.name ?? "Unnamed Room",
-    url: room.url ?? "",
-    running: room.running ?? false,
-    paused: room.paused ?? false,
-    isReady: room.is_ready ?? false,
-    status: room.status ?? "unknown",
-    created: room.created,
-    labels: room.labels ?? {},
-    userPassword: "memberpass",
-    adminPassword: "adminpass",
+    ...room,
+    name,
+    is_ready: ready,
+    ready,
+    running: room?.running === true,
+    display_status: ready ? "Ready" : "Starting",
+    url: publicUrl,
+    public_url: publicUrl,
   };
 }
 
-function pickAvailableProfileId(rooms: FormattedRoom[]) {
-  const activeGtoRooms = rooms.filter((room) => {
-    return (
-      room.labels?.club === "poker-club" &&
-      room.labels?.purpose === "gto-wizard" &&
-      (room.running || room.isReady)
-    );
-  });
+async function getInstanceState() {
+  const instanceId = requireEnv(NEKO_INSTANCE_ID, "NEKO_INSTANCE_ID");
 
-  const usedProfileIds = new Set(
-    activeGtoRooms
-      .map((room) => room.labels?.profile_id)
-      .filter((profileId): profileId is string => Boolean(profileId))
-  );
-
-  return GTO_PROFILE_IDS.find((profileId) => !usedProfileIds.has(profileId));
-}
-
-async function getInstanceState(instanceId: string) {
   const result = await ec2.send(
     new DescribeInstancesCommand({
       InstanceIds: [instanceId],
-    })
+    }),
   );
 
-  return result.Reservations?.[0]?.Instances?.[0]?.State?.Name ?? "unknown";
+  return result.Reservations?.[0]?.Instances?.[0]?.State?.Name || "unknown";
 }
 
-async function startInstance(instanceId: string) {
-  await ec2.send(
-    new StartInstancesCommand({
-      InstanceIds: [instanceId],
-    })
-  );
-}
+async function waitForInstanceState(
+  desiredStates: string[],
+  timeoutMs = 5 * 60 * 1000,
+  intervalMs = 5000,
+) {
+  const startedAt = Date.now();
 
-async function waitForInstanceRunning(instanceId: string) {
-  for (let attempt = 1; attempt <= 60; attempt++) {
-    const state = await getInstanceState(instanceId);
+  while (Date.now() - startedAt < timeoutMs) {
+    const state = await getInstanceState();
 
-    console.log(`EC2 state check ${attempt}:`, state);
-
-    if (state === "running") {
-      return;
+    if (desiredStates.includes(state)) {
+      return state;
     }
 
-    if (state === "terminated" || state === "shutting-down") {
-      throw new Error(`EC2 instance is ${state}`);
-    }
-
-    await sleep(5000);
+    await sleep(intervalMs);
   }
 
-  throw new Error("EC2 instance did not become running in time");
+  throw new Error(
+    `EC2 instance did not reach one of these states in time: ${desiredStates.join(
+      ", ",
+    )}`,
+  );
 }
 
-async function waitForNekoRoomsHealthy(apiUrl: string) {
-  for (let attempt = 1; attempt <= 60; attempt++) {
-    try {
-      console.log(`Neko health check ${attempt}: ${apiUrl}/api/rooms`);
+async function startInstanceIfNeeded() {
+  const instanceId = requireEnv(NEKO_INSTANCE_ID, "NEKO_INSTANCE_ID");
+  let state = await getInstanceState();
 
-      const response = await fetch(`${apiUrl}/api/rooms`, {
+  if (state === "running") {
+    return;
+  }
+
+  if (state === "pending") {
+    await waitForInstanceState(["running"]);
+    return;
+  }
+
+  if (state === "stopping") {
+    console.log("EC2 is stopping. Waiting for it to fully stop before starting...");
+    state = await waitForInstanceState(["stopped"], 5 * 60 * 1000, 5000);
+  }
+
+  if (state === "stopped") {
+    await ec2.send(
+      new StartInstancesCommand({
+        InstanceIds: [instanceId],
+      }),
+    );
+
+    await waitForInstanceState(["running"], 5 * 60 * 1000, 5000);
+    return;
+  }
+
+  throw new Error(`EC2 instance is in unsupported state: ${state}`);
+}
+
+async function waitForNekoRoomsHealthy() {
+  const baseUrl = getBaseUrl();
+
+  for (let i = 0; i < 60; i++) {
+    try {
+      const response = await fetch(`${baseUrl}/api/rooms`, {
         cache: "no-store",
       });
 
@@ -156,332 +198,248 @@ async function waitForNekoRoomsHealthy(apiUrl: string) {
         return;
       }
     } catch {
-      // EC2/Neko Rooms is probably still booting
+      // Neko Rooms may still be starting. Keep retrying.
     }
 
     await sleep(3000);
   }
 
-  throw new Error("Neko Rooms did not become reachable in time");
+  throw new Error("Neko Rooms did not become healthy in time");
 }
 
-async function fetchRoomsFromNeko(nekoRoomsApiUrl: string) {
-  const response = await fetch(`${nekoRoomsApiUrl}/api/rooms`, {
+async function listRooms() {
+  const baseUrl = getBaseUrl();
+
+  const response = await fetch(`${baseUrl}/api/rooms`, {
     cache: "no-store",
   });
 
-  const rawText = await response.text();
-  const data = safeJsonParse(rawText);
+  if (!response.ok) {
+    throw new Error(`Could not list Neko rooms: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data.rooms)) {
+    return data.rooms;
+  }
+
+  return [];
+}
+
+async function waitForRoomReady(roomName: string) {
+  for (let i = 0; i < 40; i++) {
+    try {
+      const rooms = await listRooms();
+      const matchingRoom = rooms.find(
+        (room: any) => getRoomName(room) === roomName,
+      );
+
+      if (matchingRoom && isRoomReady(matchingRoom)) {
+        return normalizeRoom(matchingRoom);
+      }
+    } catch {
+      // Keep retrying.
+    }
+
+    await sleep(1500);
+  }
+
+  throw new Error(`Room ${roomName} was created but did not become ready`);
+}
+
+function getRoomProfileId(room: any) {
+  return (
+    room?.labels?.profile_id ||
+    room?.labels?.profileId ||
+    room?.metadata?.profile_id ||
+    room?.metadata?.profileId ||
+    null
+  );
+}
+
+function pickUnusedProfileId(rooms: any[]) {
+  const usedProfileIds = new Set(
+    rooms.map((room) => getRoomProfileId(room)).filter(Boolean),
+  );
+
+  return GTO_PROFILE_IDS.find((profileId) => !usedProfileIds.has(profileId));
+}
+
+async function createNekoRoom(profileId: string) {
+  const baseUrl = getBaseUrl();
+  const roomName = `poker-room-${Date.now()}`;
+  const userPass = process.env.NEKO_ROOM_USER_PASS || "neko";
+  const adminPass = process.env.NEKO_ROOM_ADMIN_PASS || "admin";
+
+  const payload = {
+    name: roomName,
+
+    // Neko Rooms expects `neko_image`, not `image`.
+    neko_image: NEKO_ROOM_IMAGE,
+
+    user_pass: userPass,
+    admin_pass: adminPass,
+
+    labels: {
+      club: "poker-club",
+      purpose: "gto-wizard",
+      profile_id: profileId,
+      created_by: "website",
+    },
+
+    control_protection: false,
+    implicit_control: true,
+
+    screen: "1024x576@20",
+    video_codec: "VP8",
+    video_bitrate: 650,
+    video_max_fps: 20,
+
+    audio_codec: "OPUS",
+    audio_bitrate: 48,
+
+    envs: {
+      NEKO_SESSION_IMPLICIT_HOSTING: "true",
+      NEKO_SESSION_CONTROL_PROTECTION: "false",
+      NEKO_SESSION_LOCKED_CONTROLS: "false",
+      NEKO_SESSION_INACTIVE_CURSORS: "true",
+    },
+
+    resources: {
+      memory: 3000000000,
+      shm_size: 2000000000,
+      nano_cpus: 3000000000,
+    },
+
+    mounts: [
+      {
+        type: "public",
+        host_path: `/opt/neko-rooms/data/public/profile-clones/${profileId}`,
+        container_path: "/home/neko/.mozilla/firefox/profile.default",
+      },
+      {
+        type: "template",
+        host_path: "/firefox-policy/policies.json",
+        container_path: "/usr/lib/firefox/distribution/policies.json",
+      },
+      {
+        type: "template",
+        host_path: "/firefox.conf",
+        container_path: "/etc/neko/supervisord/firefox.conf",
+      },
+    ],
+  };
+
+  if (!payload.neko_image) {
+    throw new Error("NEKO_ROOM_IMAGE is missing before creating room");
+  }
+
+  console.log("Creating Neko room:", {
+    roomName,
+    profileId,
+    neko_image: payload.neko_image,
+  });
+
+  const response = await fetch(`${baseUrl}/api/rooms`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const responseText = await response.text();
 
   if (!response.ok) {
     throw new Error(
-      `Neko Rooms returned ${response.status}: ${rawText || "No response body"}`
+      `Could not create Neko room: ${responseText || response.statusText}`,
     );
   }
 
-  return Array.isArray(data) ? data.map(formatRoom) : [];
-}
-
-async function fetchRoomById(apiUrl: string, roomId: string) {
-  const response = await fetch(`${apiUrl}/api/rooms/${roomId}`, {
-    cache: "no-store",
-  });
-
-  const rawText = await response.text();
-  const data = safeJsonParse(rawText) as NekoRoom | null;
+  const readyRoom = await waitForRoomReady(roomName);
+  const publicUrl = normalizeNekoRoomUrl(readyRoom.url, roomName);
 
   return {
-    ok: response.ok,
-    status: response.status,
-    rawText,
-    data,
+    ...readyRoom,
+    name: roomName,
+    profile_id: profileId,
+    url: publicUrl,
+    public_url: publicUrl,
+    is_ready: true,
+    ready: true,
+    running: readyRoom.running === true,
+    display_status: "Ready",
   };
 }
 
-async function ensureNekoInfrastructureReady() {
-  const instanceId = process.env.NEKO_INSTANCE_ID;
-  const nekoRoomsApiUrl =
-    process.env.NEKO_ROOMS_PUBLIC_URL ?? process.env.NEKO_ROOMS_API_URL;
-
-  if (!nekoRoomsApiUrl) {
-    throw new Error("Missing NEKO_ROOMS_PUBLIC_URL or NEKO_ROOMS_API_URL");
-  }
-
-  // Local mode: no EC2 instance configured
-  if (!instanceId) {
-    await waitForNekoRoomsHealthy(nekoRoomsApiUrl);
-    return nekoRoomsApiUrl;
-  }
-
-  const state = await getInstanceState(instanceId);
-
-  console.log("Current EC2 state:", state);
-
-  if (state === "stopped") {
-    console.log("Starting EC2 instance:", instanceId);
-    await startInstance(instanceId);
-    await waitForInstanceRunning(instanceId);
-  } else if (state === "pending" || state === "stopping") {
-    await waitForInstanceRunning(instanceId);
-  } else if (state !== "running") {
-    throw new Error(`EC2 instance is in unsupported state: ${state}`);
-  }
-
-  await waitForNekoRoomsHealthy(nekoRoomsApiUrl);
-
-  return nekoRoomsApiUrl;
-}
-
 export async function GET() {
-  const instanceId = process.env.NEKO_INSTANCE_ID;
-  const nekoRoomsApiUrl =
-    process.env.NEKO_ROOMS_PUBLIC_URL ?? process.env.NEKO_ROOMS_API_URL;
-
-  if (!nekoRoomsApiUrl) {
-    return NextResponse.json(
-      { error: "Missing NEKO_ROOMS_PUBLIC_URL or NEKO_ROOMS_API_URL" },
-      { status: 500 }
-    );
-  }
-
   try {
-    // EC2 mode: check EC2 first.
-    // If server is offline, do not query Neko Rooms.
-    if (instanceId) {
-      const state = await getInstanceState(instanceId);
+    const state = await getInstanceState();
 
-      if (state === "stopped") {
-        return NextResponse.json({
-          rooms: [],
-          server: {
-            state,
-            online: false,
-            message: "Server is asleep. Create a room to wake it up.",
-          },
-        });
-      }
-
-      if (state === "stopping") {
-        return NextResponse.json({
-          rooms: [],
-          server: {
-            state,
-            online: false,
-            message: "Server is shutting down.",
-          },
-        });
-      }
-
-      if (state === "pending") {
-        return NextResponse.json({
-          rooms: [],
-          server: {
-            state,
-            online: false,
-            message: "Server is starting.",
-          },
-        });
-      }
-
-      if (state !== "running") {
-        return NextResponse.json({
-          rooms: [],
-          server: {
-            state,
-            online: false,
-            message: `Server is not ready. Current EC2 state: ${state}`,
-          },
-        });
-      }
+    if (state !== "running") {
+      return Response.json({
+        ec2_state: state,
+        rooms: [],
+      });
     }
 
-    const rooms = await fetchRoomsFromNeko(nekoRoomsApiUrl);
+    const rooms = await listRooms();
 
-    return NextResponse.json({
-      rooms,
-      server: {
-        state: instanceId ? "running" : "local",
-        online: true,
-        message: "Server is online.",
-      },
+    return Response.json({
+      ec2_state: state,
+      rooms: rooms.map(normalizeRoom),
     });
   } catch (error) {
-    const details = error instanceof Error ? error.message : String(error);
+    const message = error instanceof Error ? error.message : String(error);
 
-    return NextResponse.json(
+    return Response.json(
       {
-        rooms: [],
-        server: {
-          online: false,
-          message: `Could not load server status: ${details}`,
-        },
-        error: "Could not load rooms",
-        details,
+        error: message,
       },
-      { status: 500 }
+      {
+        status: 500,
+      },
     );
   }
 }
 
 export async function POST() {
-  const nekoRoomImage = process.env.NEKO_ROOM_IMAGE;
-
-  if (!nekoRoomImage) {
-    return NextResponse.json(
-      { error: "Missing NEKO_ROOM_IMAGE" },
-      { status: 500 }
-    );
-  }
-
-  const roomName = `poker-room-${Date.now()}`;
-
   try {
-    // Starts EC2 if stopped, then waits for Neko Rooms.
-    const nekoRoomsApiUrl = await ensureNekoInfrastructureReady();
+    await startInstanceIfNeeded();
+    await waitForNekoRoomsHealthy();
 
-    const existingRooms = await fetchRoomsFromNeko(nekoRoomsApiUrl);
-    const profileId = pickAvailableProfileId(existingRooms);
+    const rooms = await listRooms();
+    const profileId = pickUnusedProfileId(rooms);
 
     if (!profileId) {
-      return NextResponse.json(
+      return Response.json(
         {
-          error: "All GTO Wizard profiles are currently in use",
-          details: `Active rooms are already using all available profiles: ${GTO_PROFILE_IDS.join(
-            ", "
-          )}`,
+          error: "All GTO Wizard profile clones are currently in use.",
         },
-        { status: 409 }
+        {
+          status: 409,
+        },
       );
     }
 
-    const response = await fetch(`${nekoRoomsApiUrl}/api/rooms?start=true`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name: roomName,
-        neko_image: nekoRoomImage,
-        max_connections: 5,
+    const room = await createNekoRoom(profileId);
 
-        user_pass: "memberpass",
-        admin_pass: "adminpass",
-
-        control_protection: false,
-        implicit_control: true,
-
-        screen: "1024x576@20",
-        video_codec: "VP8",
-        video_bitrate: 650,
-        video_max_fps: 20,
-
-        audio_codec: "OPUS",
-        audio_bitrate: 48,
-
-        mounts: [
-					{
-						type: "public",
-						host_path: `/opt/neko-rooms/data/public/profile-clones/${profileId}`,
-						container_path: "/home/neko/.mozilla/firefox/profile.default",
-					},
-					{
-						type: "template",
-						host_path: "/firefox-policy/policies.json",
-						container_path: "/usr/lib/firefox/distribution/policies.json",
-					},
-					{
-						type: "template",
-						host_path: "/firefox.conf",
-						container_path: "/etc/neko/supervisord/firefox.conf",
-					},
-				],
-
-        resources: {
-          memory: 3000000000,
-          shm_size: 2000000000,
-          nano_cpus: 3000000000,
-        },
-
-        envs: {
-          NEKO_SESSION_IMPLICIT_HOSTING: "true",
-          NEKO_SESSION_CONTROL_PROTECTION: "false",
-          NEKO_SESSION_LOCKED_CONTROLS: "false",
-          NEKO_SESSION_INACTIVE_CURSORS: "true",
-        },
-
-        labels: {
-          club: "poker-club",
-          purpose: "gto-wizard",
-          profile_id: profileId,
-          created_by: "website",
-        },
-      }),
-    });
-
-    const rawText = await response.text();
-    const createdRoom = safeJsonParse(rawText) as NekoRoom | null;
-
-    console.log("Neko Rooms create status:", response.status);
-    console.log("Neko Rooms create raw response:", rawText);
-    console.log("Neko Rooms create parsed response:", createdRoom);
-
-    if (!response.ok) {
-      return NextResponse.json(
-        {
-          error: "Failed to create Neko room",
-          status: response.status,
-          details: createdRoom ?? rawText,
-        },
-        { status: response.status }
-      );
-    }
-
-    if (!createdRoom?.id || !createdRoom?.url) {
-      return NextResponse.json(
-        {
-          error: "Neko Rooms returned an unexpected response",
-          status: response.status,
-          details: createdRoom ?? rawText,
-        },
-        { status: 500 }
-      );
-    }
-
-    let readyRoom = createdRoom;
-
-    for (let attempt = 1; attempt <= 15; attempt++) {
-      await sleep(2000);
-
-      const roomResult = await fetchRoomById(nekoRoomsApiUrl, createdRoom.id);
-
-      if (roomResult.ok && roomResult.data) {
-        readyRoom = roomResult.data;
-
-        if (readyRoom.is_ready === true) {
-          break;
-        }
-      }
-    }
-
-    return NextResponse.json({
-      room: formatRoom({
-        ...createdRoom,
-        ...readyRoom,
-      }),
-      profileId,
-      server: {
-        state: "running",
-        online: true,
-        message: `Room created using profile ${profileId}.`,
-      },
-    });
+    return Response.json(room);
   } catch (error) {
-    return NextResponse.json(
+    const message = error instanceof Error ? error.message : String(error);
+
+    return Response.json(
       {
-        error: "Could not create Neko room",
-        details: error instanceof Error ? error.message : String(error),
+        error: message,
       },
-      { status: 500 }
+      {
+        status: 500,
+      },
     );
   }
 }

@@ -1,37 +1,28 @@
-version: "3.5"
-
-networks:
-  default:
-    attachable: true
-    name: "neko-rooms-net"
-
 services:
   neko-rooms:
-    image: "m1k1o/neko-rooms:latest"
-    restart: "unless-stopped"
-
-    environment:
-      - "TZ=America/Los_Angeles"
-
-      - "NEKO_ROOMS_MUX=true"
-      - "NEKO_ROOMS_EPR=$${NEKO_ROOMS_EPR:-59100-59149}"
-      - "NEKO_ROOMS_NAT1TO1=$${NEKO_PUBLIC_IP}"
-      - "NEKO_ROOMS_INSTANCE_URL=http://$${NEKO_PUBLIC_IP}:8080/"
-      - "NEKO_ROOMS_INSTANCE_NETWORK=neko-rooms-net"
-
-      - "NEKO_ROOMS_TRAEFIK_ENABLED=false"
-      - "NEKO_ROOMS_PATH_PREFIX=/room/"
-
-      - "NEKO_ROOMS_NEKO_IMAGES=ghcr.io/m1k1o/neko/firefox:latest"
-
-      - "NEKO_ROOMS_STORAGE_ENABLED=true"
-      - "NEKO_ROOMS_STORAGE_INTERNAL=/data"
-      - "NEKO_ROOMS_STORAGE_EXTERNAL=${NEKO_DATA_DIR}"
-      - "NEKO_ROOMS_MOUNTS_WHITELIST=${NEKO_DATA_DIR}"
-
+    image: m1k1o/neko-rooms:latest
+    restart: unless-stopped
     ports:
       - "8080:8080"
+    environment:
+      TZ: America/Los_Angeles
+
+      NEKO_ROOMS_MUX: "true"
+      NEKO_ROOMS_EPR: 59000-59049
+      NEKO_ROOMS_NAT1TO1: ${PUBLIC_IP}
+      NEKO_ROOMS_INSTANCE_URL: ${NEKO_ROOMS_PUBLIC_URL}/
+      NEKO_ROOMS_INSTANCE_NETWORK: neko-rooms_default
+      NEKO_ROOMS_TRAEFIK_ENABLED: "false"
+      NEKO_ROOMS_PATH_PREFIX: /room/
+
+      NEKO_ROOMS_MOUNTS_WHITELIST: /opt/neko-rooms/data
+      NEKO_ROOMS_STORAGE_ENABLED: "true"
+      NEKO_ROOMS_STORAGE_EXTERNAL: /opt/neko-rooms/data
+      NEKO_ROOMS_STORAGE_INTERNAL: /data
+
+      NEKO_ROOMS_NEKO_IMAGES: "ghcr.io/m1k1o/neko/firefox:latest sebat2004/neko-firefox-xprintidle:latest"
 
     volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock"
-      - "$${NEKO_DATA_DIR}:/data"
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/neko-rooms/data:/data
+      - /opt/neko-rooms/data:/opt/neko-rooms/data
