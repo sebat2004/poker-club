@@ -43,6 +43,17 @@ function formatDate(date?: string) {
   }).format(new Date(date));
 }
 
+function getAutologinRoomUrl(room: Room) {
+  const baseUrl = room.public_url || room.url;
+
+  const url = new URL(baseUrl);
+  url.searchParams.set("usr", "viewer");
+  url.searchParams.set("pwd", "neko");
+  url.searchParams.set("cast", "1");
+
+  return url.toString();
+}
+
 async function readJsonResponse(response: Response) {
   const text = await response.text();
 
@@ -327,7 +338,7 @@ export default function RoomsPage() {
 
                       <div className="flex w-full shrink-0 sm:w-auto">
                         <a
-                          href={roomUrl}
+                          href={getAutologinRoomUrl(room)}
                           target="_blank"
                           rel="noreferrer"
                           className={`w-full rounded-xl px-4 py-2.5 text-center text-sm font-bold transition sm:w-auto sm:rounded-2xl sm:px-5 sm:py-3 ${
