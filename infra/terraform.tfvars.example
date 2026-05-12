@@ -1,2 +1,8 @@
-allowed_ssh_cidr = "YOUR_PUBLIC_IP/32"
-instance_type    = "t3.xlarge"
+allowed_ssh_cidr = "YOUR_CURRENT_IP/32"
+instance_type    = "c7i.xlarge"
+
+aws_region          = "us-west-2"
+availability_zone   = "us-west-2a"
+data_volume_size_gb = 20
+
+ssh_public_key_path = "~/.ssh/id_rsa.pub"

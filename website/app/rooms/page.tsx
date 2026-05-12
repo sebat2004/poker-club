@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import StopServerButton from "../components/StopServerButton";
 
 type Room = {
   id: string;
@@ -17,6 +18,17 @@ type Room = {
   adminPassword?: string;
 };
 
+type RoomsApiResponse = {
+  rooms?: Room[];
+  server?: {
+    state?: string;
+    online?: boolean;
+    message?: string;
+  };
+  error?: string;
+  details?: unknown;
+};
+
 function formatDate(date?: string) {
   if (!date) return "Unknown";
 
@@ -26,6 +38,16 @@ function formatDate(date?: string) {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(date));
+}
+
+async function readJsonResponse(response: Response) {
+  const text = await response.text();
+
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(text || "Server returned invalid JSON");
+  }
 }
 
 function StatusBadge({ room }: { room: Room }) {
@@ -57,57 +79,87 @@ export default function RoomsPage() {
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
+
+  function updateStatusMessage(data: RoomsApiResponse) {
+    if (data.server?.state === "stopped") {
+      setStatusMessage("Server is asleep. Create a room to wake it up.");
+    } else if (data.server?.state === "stopping") {
+      setStatusMessage("Server is shutting down.");
+    } else if (data.server?.state === "pending") {
+      setStatusMessage("Server is starting...");
+    } else if (data.server?.online) {
+      setStatusMessage("Server is online.");
+    } else {
+      setStatusMessage(data.server?.message ?? "Server is offline.");
+    }
+  }
 
   async function loadRooms() {
-    setIsLoadingRooms(true);
-    setError("");
+		setIsLoadingRooms(true);
+		setError("");
 
-    try {
-      const response = await fetch("/api/rooms", {
-        cache: "no-store",
-      });
+	try {
+			const response = await fetch("/api/rooms", {
+				cache: "no-store",
+			});
 
-      const data = await response.json();
+			const data = (await readJsonResponse(response)) as RoomsApiResponse;
 
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to load rooms");
-      }
+			setRooms(data.rooms ?? []);
 
-      setRooms(data.rooms ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setIsLoadingRooms(false);
-    }
-  }
+			if (data.server?.message) {
+				setStatusMessage(data.server.message);
+			} else if (data.server?.state === "stopped") {
+				setStatusMessage("Server is asleep. Create a room to wake it up.");
+			} else if (data.server?.online) {
+				setStatusMessage("Server is online.");
+			} else {
+				setStatusMessage("Server is offline.");
+			}
+
+			if (!response.ok) {
+				throw new Error(data.error || "Failed to load rooms");
+			}
+		} catch (err) {
+			setRooms([]);
+			setStatusMessage("Server is offline.");
+			setError(err instanceof Error ? err.message : "Something went wrong");
+		} finally {
+			setIsLoadingRooms(false);
+		}
+	}
 
   async function createRoom() {
-    setIsCreating(true);
-    setError("");
+		setIsCreating(true);
+		setError("");
+		setStatusMessage("Starting server. This can take about 1-2 minutes...");
 
-    try {
-      const response = await fetch("/api/rooms", {
-        method: "POST",
-      });
+		try {
+			const response = await fetch("/api/rooms", {
+				method: "POST",
+			});
 
-      const data = await response.json();
+			const data = await readJsonResponse(response);
 
-      if (!response.ok) {
-        const details =
-          typeof data.details === "string"
-            ? data.details
-            : JSON.stringify(data.details, null, 2);
+			if (!response.ok) {
+				const details =
+					typeof data.details === "string"
+						? data.details
+						: JSON.stringify(data.details, null, 2);
 
-        throw new Error(`${data.error || "Failed to create room"}: ${details}`);
-      }
+				throw new Error(`${data.error || "Failed to create room"}: ${details}`);
+			}
 
-      await loadRooms();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setIsCreating(false);
-    }
-  }
+			setStatusMessage("Room created. Refreshing rooms...");
+			await loadRooms();
+		} catch (err) {
+			setStatusMessage("Could not create room.");
+			setError(err instanceof Error ? err.message : "Something went wrong");
+		} finally {
+			setIsCreating(false);
+		}
+	}
 
   useEffect(() => {
     loadRooms();
@@ -143,12 +195,17 @@ export default function RoomsPage() {
             </h1>
 
             <p className="mt-3 max-w-2xl text-zinc-400">
-              Create a temporary shared room or join one that is already
-              open.
+              Create a temporary shared room or join one that is already open.
             </p>
+
+            {statusMessage && (
+              <p className="mt-3 inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-300">
+                {statusMessage}
+              </p>
+            )}
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <button
               onClick={loadRooms}
               disabled={isLoadingRooms}
@@ -164,11 +221,13 @@ export default function RoomsPage() {
             >
               {isCreating ? "Creating..." : "Create Room"}
             </button>
+
+            <StopServerButton />
           </div>
         </header>
 
         {error && (
-          <div className="mb-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
+          <div className="mb-6 whitespace-pre-wrap rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
             {error}
           </div>
         )}
@@ -210,6 +269,7 @@ export default function RoomsPage() {
               <p className="mt-2 text-zinc-400">
                 Create a room to start a shared browser session.
               </p>
+
               <button
                 onClick={createRoom}
                 disabled={isCreating}
@@ -259,26 +319,6 @@ export default function RoomsPage() {
                       >
                         {room.isReady ? "Open Room" : "Starting..."}
                       </a>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 grid gap-3 border-t border-white/10 pt-4 md:grid-cols-2">
-                    <div className="rounded-xl bg-black/30 p-3">
-                      <p className="text-xs uppercase tracking-wide text-zinc-500">
-                        Member Password
-                      </p>
-                      <p className="mt-1 font-mono text-sm text-zinc-200">
-                        {room.userPassword ?? "memberpass"}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl bg-black/30 p-3">
-                      <p className="text-xs uppercase tracking-wide text-zinc-500">
-                        Status
-                      </p>
-                      <p className="mt-1 text-sm text-zinc-200">
-                        {room.status}
-                      </p>
                     </div>
                   </div>
                 </article>

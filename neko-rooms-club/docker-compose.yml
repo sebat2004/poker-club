@@ -14,9 +14,9 @@ services:
       - "TZ=America/Los_Angeles"
 
       - "NEKO_ROOMS_MUX=true"
-      - "NEKO_ROOMS_EPR=59100-59149"
-      - "NEKO_ROOMS_NAT1TO1=127.0.0.1"
-      - "NEKO_ROOMS_INSTANCE_URL=http://127.0.0.1:8080/"
+      - "NEKO_ROOMS_EPR=$${NEKO_ROOMS_EPR:-59100-59149}"
+      - "NEKO_ROOMS_NAT1TO1=$${NEKO_PUBLIC_IP}"
+      - "NEKO_ROOMS_INSTANCE_URL=http://$${NEKO_PUBLIC_IP}:8080/"
       - "NEKO_ROOMS_INSTANCE_NETWORK=neko-rooms-net"
 
       - "NEKO_ROOMS_TRAEFIK_ENABLED=false"
@@ -24,8 +24,14 @@ services:
 
       - "NEKO_ROOMS_NEKO_IMAGES=ghcr.io/m1k1o/neko/firefox:latest"
 
+      - "NEKO_ROOMS_STORAGE_ENABLED=true"
+      - "NEKO_ROOMS_STORAGE_INTERNAL=/data"
+      - "NEKO_ROOMS_STORAGE_EXTERNAL=${NEKO_DATA_DIR}"
+      - "NEKO_ROOMS_MOUNTS_WHITELIST=${NEKO_DATA_DIR}"
+
     ports:
       - "8080:8080"
 
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
+      - "$${NEKO_DATA_DIR}:/data"

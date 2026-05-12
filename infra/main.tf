@@ -51,7 +51,7 @@ resource "aws_security_group" "neko_sg" {
   ingress {
     description = "WebRTC UDP range"
     from_port   = 59100
-    to_port     = 59999
+    to_port     = 59149
     protocol    = "udp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -87,9 +87,26 @@ resource "aws_eip" "neko_ip" {
   }
 }
 
+resource "aws_ebs_volume" "neko_data" {
+  availability_zone = var.availability_zone
+  size              = var.data_volume_size_gb
+  type              = "gp3"
+  encrypted         = true
+
+  tags = {
+    Name    = "${var.project_name}-data"
+    Project = var.project_name
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
 resource "aws_instance" "neko" {
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
+  availability_zone           = var.availability_zone
   key_name                    = aws_key_pair.neko_key.key_name
   vpc_security_group_ids      = [aws_security_group.neko_sg.id]
   associate_public_ip_address = true
@@ -102,13 +119,22 @@ resource "aws_instance" "neko" {
   }
 
   user_data = templatefile("${path.module}/user_data.sh.tftpl", {
-    public_ip = aws_eip.neko_ip.public_ip
+    public_ip              = aws_eip.neko_ip.public_ip
+    data_volume_id         = aws_ebs_volume.neko_data.id
+    data_volume_id_no_dash = replace(aws_ebs_volume.neko_data.id, "-", "")
   })
 
   tags = {
     Name    = var.project_name
     Project = var.project_name
   }
+}
+
+resource "aws_volume_attachment" "neko_data_attach" {
+  device_name  = var.data_volume_device_name
+  volume_id    = aws_ebs_volume.neko_data.id
+  instance_id  = aws_instance.neko.id
+  force_detach = true
 }
 
 resource "aws_eip_association" "neko_ip_assoc" {
