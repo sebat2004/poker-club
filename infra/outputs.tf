@@ -29,8 +29,8 @@ output "neko_public_ip" {
 }
 
 output "neko_rooms_public_url" {
-  description = "Public URL for the Neko Rooms manager"
-  value       = "http://${aws_eip.neko_ip.public_ip}:8080"
+  description = "Public HTTPS URL for the Neko Rooms manager"
+  value       = "https://gto.osupoker.club"
 }
 
 output "ssh_command" {

@@ -33,13 +33,6 @@ resource "aws_security_group" "neko_sg" {
   description = "Security group for Neko Rooms"
 
   ingress {
-    description = "Neko Rooms HTTP"
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  ingress {
     description = "Neko WebRTC TCP"
     from_port   = 59000
     to_port     = 59049
@@ -60,6 +53,22 @@ resource "aws_security_group" "neko_sg" {
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = [var.allowed_ssh_cidr]
+  }
+
+  ingress {
+    description = "HTTP for TLS certificate"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
