@@ -32,6 +32,12 @@ export default function RoomsPage() {
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [creationStep, setCreationStep] = useState(0);
+  /* `isFinishing` keeps the progress view rendered after the mutation
+     resolves so we can hold the 100% / "Room ready" state long enough to
+     read — without it, react-query flips `isPending` to false the instant
+     the request returns and the modal would flash back to the form view
+     during the close dwell. */
+  const [isFinishing, setIsFinishing] = useState(false);
   const creationTimerRef = useRef<number | null>(null);
 
   const roomsQuery = useRoomsQuery();
@@ -83,14 +89,24 @@ export default function RoomsPage() {
       await createRoomMutation.mutateAsync(options);
 
       clearCreationTimer();
+      /* Hold the progress view ourselves while we animate to 100% — the
+         mutation just resolved, so isPending is false, but we don't want
+         the modal to flicker back to the form during the close dwell. */
+      setIsFinishing(true);
       setCreationStep(getCreationStepCount() - 1);
 
+      /* 1200ms is enough for the bar's 700ms width transition to fully
+         fill, then linger at 100% for ~500ms so the success state is
+         actually readable. Previously this was 750ms — shorter than the
+         bar's own animation, which is why the fill looked incomplete. */
       window.setTimeout(() => {
         setIsCreateModalOpen(false);
+        setIsFinishing(false);
         setCreationStep(0);
-      }, 750);
+      }, 1200);
     } catch {
       setCreationStep(0);
+      setIsFinishing(false);
     } finally {
       clearCreationTimer();
     }
@@ -108,7 +124,10 @@ export default function RoomsPage() {
 
       <CreateRoomModal
         isOpen={isCreateModalOpen}
-        isCreating={createRoomMutation.isPending}
+        /* `isCreating` covers both "request in flight" and "holding the
+           success state". Treating them the same in the modal keeps the
+           progress view stable across the entire create flow. */
+        isCreating={createRoomMutation.isPending || isFinishing}
         creationStep={creationStep}
         error={createError}
         onClose={() => setIsCreateModalOpen(false)}
