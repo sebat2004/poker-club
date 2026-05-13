@@ -46,7 +46,7 @@ export default function HomePage() {
         />
 
         {/* ----- Hero --------------------------------------------------- */}
-        <section className="grid gap-12 py-20 md:py-28 lg:grid-cols-[minmax(0,1fr)_440px] lg:gap-16 lg:py-36">
+        <section className="grid gap-12 py-10 md:py-18 lg:grid-cols-[minmax(0,1fr)_440px] lg:gap-16 lg:py-26">
           <div className="flex flex-col justify-center">
             <h1
               className="mt-7 max-w-3xl font-display text-5xl font-semibold leading-[1.02] tracking-tight text-foreground text-balance sm:text-6xl md:text-7xl lg:text-[5.25rem]"
