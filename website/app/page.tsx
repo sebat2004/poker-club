@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowUpRight, Sparkles } from "lucide-react";
+import { ArrowUpRight, LogOut, Sparkles } from "lucide-react";
 import { signIn, signOut, useSession } from "@/app/lib/auth-client";
 
 const features = [
@@ -84,7 +84,7 @@ export default function HomePage() {
               </Link>
             </div>
 
-            <dl className="mt-12 grid max-w-sm grid-cols-2 gap-8 border-t border-border pt-6">
+            <dl className="mt-12 hidden sm:grid max-w-sm grid-cols-2 gap-8 border-t border-border pt-6">
               {heroStats.map((stat) => (
                 <div key={stat.label}>
                   <dt className="font-mono text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">
@@ -211,14 +211,15 @@ function SiteNav({
               href="/rooms"
               className="hidden h-10 items-center rounded-lg px-3 text-sm font-medium text-muted-foreground transition hover:bg-white/[0.04] hover:text-foreground focus-visible:text-[var(--accent)] focus-visible:outline-none sm:inline-flex"
             >
-              Rooms
+              View Study Rooms
             </Link>
             <button
-              type="button"
-              onClick={() => signOut()}
-              className="inline-flex h-10 items-center rounded-lg border border-border px-4 text-sm font-medium text-foreground transition-all duration-200 hover:border-[var(--border-hover)] hover:bg-white/[0.04] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+                type="button"
+                onClick={() => signOut()}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium text-foreground transition-all duration-200 hover:border-[var(--border-hover)] hover:bg-white/[0.04] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
             >
-              Sign out
+                <LogOut className="size-3.5" strokeWidth={1.75} />
+                Sign out
             </button>
           </>
         ) : (
