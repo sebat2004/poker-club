@@ -6,7 +6,11 @@ export default function AuthButton() {
   const { data: session, isPending } = useSession();
 
   if (isPending) {
-    return <span className="text-sm text-orange-100/60">Checking login...</span>;
+    return (
+      <span className="text-sm uppercase tracking-[0.1em] text-muted-foreground">
+        Checking login...
+      </span>
+    );
   }
 
   if (!session?.user) {
@@ -14,7 +18,7 @@ export default function AuthButton() {
       <button
         type="button"
         onClick={() => signIn.social({ provider: "google" })}
-        className="rounded-full bg-orange-500 px-4 py-2 text-sm font-bold text-black hover:bg-orange-400"
+        className="border border-primary/45 bg-primary/[0.03] px-4 py-2 text-sm font-bold uppercase tracking-[0.1em] text-primary transition hover:bg-primary hover:text-primary-foreground"
       >
         Sign in with Google
       </button>
@@ -23,14 +27,14 @@ export default function AuthButton() {
 
   return (
     <div className="flex items-center gap-3">
-      <span className="hidden text-sm text-orange-100/70 sm:inline">
+      <span className="hidden text-sm text-muted-foreground sm:inline">
         {session.user.email}
       </span>
 
       <button
         type="button"
         onClick={() => signOut()}
-        className="rounded-full border border-orange-500/40 px-4 py-2 text-sm font-bold text-orange-100 hover:bg-orange-500/10"
+        className="border border-border px-4 py-2 text-sm font-bold uppercase tracking-[0.1em] text-foreground transition hover:bg-foreground hover:text-background"
       >
         Sign out
       </button>

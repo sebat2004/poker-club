@@ -1,58 +1,273 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
+import { ArrowUpRight, Sparkles } from "lucide-react";
 import { signIn, signOut, useSession } from "@/app/lib/auth-client";
 
-const suits = ["♠", "♥", "♣", "♦"];
+const features = [
+  {
+    label: "01",
+    title: "Learn",
+    description:
+      "Attend lessons to learn more about fundemental poker concepts.",
+  },
+  {
+    label: "02",
+    title: "Study",
+    description:
+      "Shared browser rooms give paid members access to GTO Wizard premium.",
+  },
+  {
+    label: "03",
+    title: "Play",
+    description:
+      "Weekly tournaments turn study into reps against other students.",
+  },
+];
 
-function GoogleIcon() {
+const heroStats = [
+  { value: "Weekly", label: "Tournaments" },
+  { value: "$10", label: "Weekly Dues" },
+];
+
+export default function HomePage() {
+  const { data: session, isPending } = useSession();
+  const isSignedIn = Boolean(session?.user);
+
   return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4"
-      viewBox="0 0 24 24"
-    >
-      <path
-        fill="#4285F4"
-        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-      />
-      <path
-        fill="#34A853"
-        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.84z"
-      />
-      <path
-        fill="#EA4335"
-        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06L5.84 9.9C6.71 7.3 9.14 5.38 12 5.38z"
-      />
-    </svg>
+    <main className="relative min-h-screen text-foreground">
+      <PageBackdrop />
+
+      <div className="relative z-10 mx-auto w-full max-w-6xl px-6 md:px-8 lg:px-12">
+        <SiteNav
+          isPending={isPending}
+          isSignedIn={isSignedIn}
+        />
+
+        {/* ----- Hero --------------------------------------------------- */}
+        <section className="grid gap-12 py-20 md:py-28 lg:grid-cols-[minmax(0,1fr)_440px] lg:gap-16 lg:py-36">
+          <div className="flex flex-col justify-center">
+            <h1
+              className="mt-7 max-w-3xl font-display text-5xl font-semibold leading-[1.02] tracking-tight text-foreground text-balance sm:text-6xl md:text-7xl lg:text-[5.25rem]"
+            >
+              Learn poker.
+              <br />
+              <span className="text-foreground/85">Play </span>
+              <span className="relative inline-block text-primary">
+                weekly
+                <span
+                  aria-hidden
+                  className="absolute -inset-x-2 -inset-y-1 -z-10 rounded-full bg-primary/15 blur-2xl"
+                />
+              </span>
+              <span className="text-foreground/85">.</span>
+            </h1>
+
+            <p className="mt-7 max-w-xl text-lg leading-relaxed text-muted-foreground">
+              A student-run club for learning poker strategy, studying with
+              shared tools, and playing tournaments against other Oregon State
+              students.
+            </p>
+
+            <div className="mt-9 flex flex-wrap items-center gap-3">
+              <HeroPrimaryAction
+                isPending={isPending}
+                isSignedIn={isSignedIn}
+              />
+
+              <Link
+                href="#learn"
+                className="inline-flex h-11 items-center justify-center rounded-lg border border-border px-5 text-sm font-medium text-foreground transition-all duration-200 hover:border-[var(--border-hover)] hover:bg-white/[0.03] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+              >
+                How it works
+              </Link>
+            </div>
+
+            <dl className="mt-12 grid max-w-sm grid-cols-2 gap-8 border-t border-border pt-6">
+              {heroStats.map((stat) => (
+                <div key={stat.label}>
+                  <dt className="font-mono text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">
+                    {stat.label}
+                  </dt>
+                  <dd className="mt-1 font-display text-2xl font-semibold tracking-tight text-foreground">
+                    {stat.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+
+            {!isPending && session?.user?.email && (
+              <p className="mt-6 max-w-full break-words font-mono text-[0.7rem] uppercase tracking-[0.14em] text-muted-foreground">
+                Signed in as{" "}
+                <span className="text-foreground">{session.user.email}</span>
+              </p>
+            )}
+          </div>
+
+          <HeroImageCard />
+        </section>
+
+        {/* ----- Features ----------------------------------------------- */}
+        <section
+          id="learn"
+          className="pt-24 md:pt-28 lg:pt-32 pb-8 border-b"
+        >
+          <div className="mb-12 flex flex-col gap-3 md:mb-16">
+            <span className="font-mono text-[0.7rem] uppercase tracking-[0.22em] text-primary">
+              What we offer
+            </span>
+            <h2 className="font-display text-3xl font-semibold tracking-tight text-foreground sm:text-4xl md:text-5xl">
+              Study and Play
+            </h2>
+            <p className="max-w-2xl text-base leading-relaxed text-muted-foreground md:text-lg">
+              We host lessons, study tools, and tournaments to help you improve your game.
+            </p>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-3 md:gap-6">
+            {features.map((feature) => (
+              <FeatureCard key={feature.label} {...feature} />
+            ))}
+          </div>
+        </section>
+
+        {/* ----- Final CTA ---------------------------------------------- */}
+        <section className="pt-8">
+          <div className="glass-card relative overflow-hidden rounded-2xl border border-border p-8 md:p-12 lg:p-16">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-primary/10 blur-3xl"
+            />
+
+            <div className="relative flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
+              <div className="max-w-2xl">
+                <span className="inline-flex items-center gap-2 font-mono text-[0.7rem] uppercase tracking-[0.22em] text-primary">
+                  <Sparkles className="size-3.5" strokeWidth={1.75} />
+                  Next session
+                </span>
+                <h3 className="mt-4 font-display text-3xl font-semibold tracking-tight text-foreground sm:text-4xl md:text-5xl text-balance">
+                  Ready to deal in?
+                </h3>
+                <p className="mt-4 text-base leading-relaxed text-muted-foreground md:text-lg">
+                  $10 weekly member due. Open the GTO rooms to start training for the next tournament.
+                </p>
+              </div>
+
+              <HeroPrimaryAction
+                isPending={isPending}
+                isSignedIn={isSignedIn}
+              />
+            </div>
+          </div>
+        </section>
+
+        <SiteFooter />
+      </div>
+    </main>
   );
 }
 
-function SignInButton({ className = "" }: { className?: string }) {
+function PageBackdrop() {
   return (
-    <button
-      type="button"
-      onClick={() => signIn.social({ provider: "google" })}
-      className={`inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-xs font-bold text-black transition hover:bg-orange-100 md:text-sm ${className}`}
-    >
-      <GoogleIcon />
-      Sign in With Google
-    </button>
+    <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+      <div className="absolute -top-40 left-1/2 h-[400px] w-[400px] -translate-x-1/2 rounded-full bg-primary/[0.07] blur-[120px] md:h-[600px] md:w-[600px] md:blur-[150px]" />
+      <div className="absolute bottom-0 right-0 h-[300px] w-[300px] translate-x-1/3 translate-y-1/3 rounded-full bg-primary/[0.04] blur-[100px] md:h-[500px] md:w-[500px]" />
+    </div>
   );
 }
 
-function HeroRoomsButton({ isSignedIn }: { isSignedIn: boolean }) {
+function SiteNav({
+  isPending,
+  isSignedIn,
+}: {
+  isPending: boolean;
+  isSignedIn: boolean;
+}) {
+  return (
+    <nav className="flex items-center justify-between gap-6 py-6">
+      <Link
+        href="/"
+        className="group flex items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+      >
+        <span className="relative inline-flex h-11 w-11 items-center justify-center overflow-hidden rounded-lg border border-border bg-card transition group-hover:border-[var(--border-hover)]">
+          <Image
+            src="/logo.png"
+            alt=""
+            width={44}
+            height={44}
+            className="h-full w-full object-cover"
+          />
+        </span>
+        <div className="leading-tight">
+          <p className="text-sm font-semibold text-foreground">Poker Club</p>
+          <p className="font-mono text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">
+            Oregon State
+          </p>
+        </div>
+      </Link>
+
+      <div className="flex items-center gap-2">
+        {isPending ? (
+          <span className="font-mono text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">
+            Checking
+          </span>
+        ) : isSignedIn ? (
+          <>
+            <Link
+              href="/rooms"
+              className="hidden h-10 items-center rounded-lg px-3 text-sm font-medium text-muted-foreground transition hover:bg-white/[0.04] hover:text-foreground focus-visible:text-[var(--accent)] focus-visible:outline-none sm:inline-flex"
+            >
+              Rooms
+            </Link>
+            <button
+              type="button"
+              onClick={() => signOut()}
+              className="inline-flex h-10 items-center rounded-lg border border-border px-4 text-sm font-medium text-foreground transition-all duration-200 hover:border-[var(--border-hover)] hover:bg-white/[0.04] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+            >
+              Sign out
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => signIn.social({ provider: "google" })}
+            className="inline-flex h-10 items-center rounded-lg border border-border px-4 text-sm font-medium text-foreground transition-all duration-200 hover:border-[var(--border-hover)] hover:bg-white/[0.04] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+          >
+            Sign in
+          </button>
+        )}
+      </div>
+    </nav>
+  );
+}
+
+function HeroPrimaryAction({
+  isPending,
+  isSignedIn,
+}: {
+  isPending: boolean;
+  isSignedIn: boolean;
+}) {
+  const className =
+    "group inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-6 text-sm font-medium text-primary-foreground transition-all duration-200 hover:brightness-110 hover:shadow-[0_0_20px_rgba(220,68,5,0.4)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] disabled:opacity-60";
+
+  if (isPending) {
+    return (
+      <button type="button" disabled className={className}>
+        Loading…
+      </button>
+    );
+  }
+
   if (isSignedIn) {
     return (
-      <Link
-        href="/rooms"
-        className="rounded-2xl border bg-orange-500 px-6 py-3 text-sm font-bold text-black transition hover:bg-orange-400"
-      >
-        Open GTO Wizard Rooms
+      <Link href="/rooms" className={className}>
+        Open GTO rooms
+        <ArrowUpRight
+          className="size-4 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+          strokeWidth={2}
+        />
       </Link>
     );
   }
@@ -61,174 +276,99 @@ function HeroRoomsButton({ isSignedIn }: { isSignedIn: boolean }) {
     <button
       type="button"
       onClick={() => signIn.social({ provider: "google" })}
-      className="rounded-2xl border bg-orange-500 px-6 py-3 text-sm font-bold text-black transition hover:bg-orange-400"
+      className={className}
     >
-      Open GTO Wizard Rooms
+      Sign in to play
+      <ArrowUpRight
+        className="size-4 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+        strokeWidth={2}
+      />
     </button>
   );
 }
 
-export default function HomePage() {
-  const { data: session, isPending } = useSession();
-  const isSignedIn = Boolean(session?.user);
-
+function HeroImageCard() {
   return (
-    <main className="min-h-screen bg-[#090604] text-[#f5eee6]">
-      <div className="mx-auto max-w-6xl px-6">
-        <nav className="flex items-center justify-between gap-6 border-b border-orange-500/20 py-5">
-          <Link href="/" className="flex w-1/2 items-center gap-3">
-            <img
-              src="/logo.png"
-              alt="Poker Club at OSU logo"
-              className="h-12 w-12 rounded-full object-cover ring-2 ring-orange-500/40"
-            />
+    <div className="relative">
+      <div className="glass-card overflow-hidden rounded-2xl border border-border p-2 shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
+        <div className="relative aspect-[5/6] overflow-hidden rounded-xl bg-background-alt">
+          <Image
+            src="/hero.jpg"
+            alt="Poker chips and cards on a felt table"
+            fill
+            sizes="(min-width: 1024px) 440px, 100vw"
+            className="h-full w-full object-cover object-[center_60%]"
+            priority
+          />
 
-            <div>
-              <p className="font-bold leading-none text-[#f5eee6]">
-                Poker Club
+          <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-background via-background/70 to-transparent" />
+
+          <div className="absolute inset-x-5 bottom-5 flex items-end justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-mono text-[0.65rem] uppercase tracking-[0.22em] text-primary [text-shadow:0_1px_6px_rgba(0,0,0,0.7)]">
+                First tournament
               </p>
-              <p className="text-xs text-orange-200/60">
-                at Oregon State University
+              <p className="mt-1.5 truncate font-display text-lg font-semibold tracking-tight text-foreground [text-shadow:0_1px_10px_rgba(0,0,0,0.8)]">
+                Poker Club kickoff
               </p>
             </div>
-          </Link>
-
-          <div className="flex items-center justify-end gap-3">
-            {isPending ? (
-              <span className="text-xs font-semibold text-orange-100/50 md:text-sm">
-                Checking login...
-              </span>
-            ) : isSignedIn ? (
-              <>
-                <Link
-                  href="/rooms"
-                  className="rounded-xl border border-orange-500/30 px-4 py-2 text-center text-xs font-semibold text-orange-100 transition hover:bg-orange-500/10 hover:text-orange-300 md:text-sm"
-                >
-                  GTO Wizard Rooms
-                </Link>
-
-                <button
-                  type="button"
-                  onClick={() => signOut()}
-                  className="hidden rounded-xl border border-orange-500/30 px-4 py-2 text-xs font-semibold text-orange-100 transition hover:bg-orange-500/10 hover:text-orange-300 sm:inline-flex md:text-sm"
-                >
-                  Sign out
-                </button>
-              </>
-            ) : (
-              <SignInButton />
-            )}
+            <span className="shrink-0 font-mono text-[0.65rem] uppercase tracking-[0.22em] text-foreground/70 [text-shadow:0_1px_6px_rgba(0,0,0,0.7)]">
+              2026
+            </span>
           </div>
-        </nav>
-
-        <section className="relative grid min-h-[76vh] items-center gap-12 lg:grid-cols-[0.9fr_540px]">
-          <div className="absolute right-4 top-16 hidden select-none gap-5 text-4xl text-orange-500/[0.08]">
-            {suits.map((suit) => (
-              <span key={suit}>{suit}</span>
-            ))}
-          </div>
-
-          <div className="flex w-full flex-col items-center md:items-start">
-            <h1 className="max-w-3xl pt-5 text-center text-5xl font-bold tracking-tight text-[#f5eee6] sm:text-7xl md:text-start">
-              Learn poker.
-              <br />
-              <span className="text-orange-500">Play better.</span>
-            </h1>
-
-            <p className="mt-6 max-w-xl text-center text-md leading-8 text-orange-100/60 sm:text-lg md:text-start">
-              A student-run club for learning poker strategy and playing
-              tournaments with other Oregon State University students.
-            </p>
-
-            <div className="mt-6 flex flex-wrap justify-center gap-3 md:justify-start">
-              <HeroRoomsButton isSignedIn={isSignedIn} />
-            </div>
-
-            {!isPending && !isSignedIn && (
-              <p className="mt-3 text-center text-xs text-orange-100/45 md:text-start">
-                Sign in first to access member GTO Wizard rooms.
-              </p>
-            )}
-
-            {!isPending && session?.user?.email && (
-              <p className="mt-3 text-center text-xs text-orange-100/45 md:text-start">
-                Signed in as{" "}
-                <span className="font-semibold text-orange-300">
-                  {session.user.email}
-                </span>
-              </p>
-            )}
-          </div>
-
-          <div className="mb-4 overflow-hidden rounded-[2rem] border border-orange-500/20 bg-orange-500/[0.04] p-2 shadow-2xl shadow-orange-950/30">
-            <div className="relative aspect-[16/10] overflow-hidden rounded-[1.65rem] bg-zinc-950">
-              <img
-                src="/hero.jpg"
-                alt="Poker table with cards and chips"
-                className="h-full w-full object-cover object-[center_70%] opacity-85"
-              />
-
-              <div className="absolute inset-0 bg-gradient-to-t from-[#090604] via-[#090604]/10 to-transparent" />
-
-              <div className="absolute right-5 top-5">
-                <img
-                  src="/logo.png"
-                  alt="Poker Club at OSU logo"
-                  className="h-14 w-14 rounded-full object-cover shadow-xl ring-2 ring-orange-500/50 md:h-20 md:w-20"
-                />
-              </div>
-
-              <div className="absolute bottom-0 left-0 right-0 p-6">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-orange-300">
-                  Poker Club - 1st Tournament
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section
-          id="learn"
-          className="grid gap-4 border-t border-orange-500/20 py-10 md:grid-cols-3"
-        >
-          <div className="rounded-3xl border border-orange-500/10 bg-orange-500/[0.03] p-5">
-            <p className="mb-2 text-2xl text-orange-500">♠</p>
-            <h3 className="text-xl font-bold text-[#f5eee6]">
-              Learn fundamentals
-            </h3>
-            <p className="mt-3 leading-7 text-orange-100/55">
-              Pot odds, position, hand ranges, tournament basics, and common
-              mistakes.
-            </p>
-          </div>
-
-          <div
-            id="tools"
-            className="rounded-3xl border border-orange-500/10 bg-orange-500/[0.03] p-5"
-          >
-            <p className="mb-2 text-2xl text-orange-500">♦</p>
-            <h3 className="text-xl font-bold text-[#f5eee6]">Use club tools</h3>
-            <p className="mt-3 leading-7 text-orange-100/55">
-              Access shared browser rooms for approved poker resources and study
-              sessions.
-            </p>
-          </div>
-
-          <div className="rounded-3xl border border-orange-500/10 bg-orange-500/[0.03] p-5">
-            <p className="mb-2 text-2xl text-orange-500">♣</p>
-            <h3 className="text-xl font-bold text-[#f5eee6]">
-              Play tournaments
-            </h3>
-            <p className="mt-3 leading-7 text-orange-100/55">
-              Play in real weekly tournaments to practice and improve your game.
-            </p>
-          </div>
-        </section>
-
-        <footer className="border-t border-orange-500/20 py-8 text-sm text-orange-100/40">
-          Poker Club at Oregon State University
-        </footer>
+        </div>
       </div>
-    </main>
+
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -inset-8 -z-10 rounded-3xl bg-primary/[0.06] blur-3xl"
+      />
+    </div>
+  );
+}
+
+function FeatureCard({
+  label,
+  title,
+  description,
+}: {
+  label: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <article
+      className="group glass-card relative flex flex-col rounded-xl border border-border p-6 transition-all duration-300 hover:scale-[1.02] hover:border-[var(--border-hover)] hover:bg-[rgba(26,26,36,0.8)] md:p-7"
+    >
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-xs font-medium tracking-[0.18em] text-primary">
+          {label}
+        </span>
+        <span
+          aria-hidden
+          className="h-px w-12 bg-gradient-to-r from-primary/40 to-transparent transition-all duration-300 group-hover:w-16 group-hover:from-primary/70"
+        />
+      </div>
+
+      <h3 className="mt-8 font-display text-2xl font-semibold tracking-tight text-foreground md:text-[1.6rem]">
+        {title}
+      </h3>
+      <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+        {description}
+      </p>
+    </article>
+  );
+}
+
+function SiteFooter() {
+  return (
+    <footer className="mt-8 flex flex-col gap-4 border-t border-border py-10 sm:flex-row sm:items-center sm:justify-between">
+      <p className="font-mono text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">
+        Poker Club · Oregon State University
+      </p>
+      <p className="font-mono text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">
+        © {new Date().getFullYear()} · Student-run
+      </p>
+    </footer>
   );
 }

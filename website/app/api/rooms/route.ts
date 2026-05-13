@@ -8,19 +8,19 @@ import { requireRoomAccess } from "@/app/lib/roomAuth";
 
 export const runtime = "nodejs";
 
-type CreateRoomMode = "balanced" | "good-720p";
-type RoomAccess = "public" | "private";
+type RoomAccessType = "public" | "private";
 
 type CreateRoomBody = {
-  mode?: CreateRoomMode;
-  access?: RoomAccess;
+  title?: string;
+  access?: RoomAccessType;
+  invitedEmails?: string[];
 };
 
 const AWS_REGION = process.env.AWS_REGION || "us-west-2";
 const AWS_ROLE_ARN = process.env.AWS_ROLE_ARN;
 const NEKO_INSTANCE_ID = process.env.NEKO_INSTANCE_ID;
 const NEKO_ROOMS_PUBLIC_URL = process.env.NEKO_ROOMS_PUBLIC_URL;
-const MAX_ACTIVE_ROOMS = Number(process.env.MAX_ACTIVE_ROOMS || 2);
+const MAX_ACTIVE_ROOMS = Number(process.env.MAX_ACTIVE_ROOMS || 3);
 
 const NEKO_ROOM_IMAGE =
   process.env.NEKO_ROOM_IMAGE?.trim() ||
@@ -107,6 +107,20 @@ function isRoomReady(room: any) {
   return room?.is_ready === true;
 }
 
+function getNekoRequestHeaders(extraHeaders?: HeadersInit) {
+  const headers = new Headers(extraHeaders);
+
+  const username = process.env.NEKO_PROXY_BASIC_AUTH_USER;
+  const password = process.env.NEKO_PROXY_BASIC_AUTH_PASS;
+
+  if (username && password) {
+    const token = Buffer.from(`${username}:${password}`).toString("base64");
+    headers.set("Authorization", `Basic ${token}`);
+  }
+
+  return headers;
+}
+
 function buildJoinUrl(roomUrl: string) {
   const userPass = process.env.NEKO_ROOM_USER_PASS || "neko";
   const url = new URL(roomUrl);
@@ -139,66 +153,45 @@ function normalizeRoom(room: any) {
   };
 }
 
-function getRoomPreset(mode: CreateRoomMode) {
-  if (mode === "balanced") {
-    return {
-      screen: "1152x648@24",
-      video_codec: "VP8",
-      video_bitrate: 900,
-      video_max_fps: 24,
-      audio_codec: "OPUS",
-      audio_bitrate: 64,
-      resources: {
-        memory: 3000000000,
-        shm_size: 1500000000,
-        nano_cpus: 2500000000,
-      },
-    };
-  }
+function parseEmailList(value: unknown) {
+  if (!Array.isArray(value)) return [];
 
-  return {
-    screen: "1280x720@30",
-    video_codec: "VP8",
-    video_bitrate: 1500,
-    video_max_fps: 30,
-    audio_codec: "OPUS",
-    audio_bitrate: 64,
-    resources: {
-      memory: 3000000000,
-      shm_size: 1500000000,
-      nano_cpus: 4000000000,
-    },
-  };
+  return value
+    .map((email) => String(email).trim().toLowerCase())
+    .filter(Boolean)
+    .filter((email, index, emails) => emails.indexOf(email) === index);
 }
 
-function getNekoRequestHeaders(extraHeaders?: HeadersInit) {
-  const headers = new Headers(extraHeaders);
+function sanitizeLabelValue(value: string, fallback: string) {
+  const cleaned = value
+    .replace(/[^\w\s@.,:+-]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
-  const username = process.env.NEKO_PROXY_BASIC_AUTH_USER;
-  const password = process.env.NEKO_PROXY_BASIC_AUTH_PASS;
-
-  if (username && password) {
-    const token = Buffer.from(`${username}:${password}`).toString("base64");
-    headers.set("Authorization", `Basic ${token}`);
-  }
-
-  return headers;
+  return cleaned || fallback;
 }
 
 function parseCreateRoomBody(body: unknown): Required<CreateRoomBody> {
   const maybeBody = body && typeof body === "object" ? (body as CreateRoomBody) : {};
 
-  const mode: CreateRoomMode =
-    maybeBody.mode === "balanced" || maybeBody.mode === "good-720p"
-      ? maybeBody.mode
-      : "good-720p";
-
-  const access: RoomAccess =
+  const access: RoomAccessType =
     maybeBody.access === "private" || maybeBody.access === "public"
       ? maybeBody.access
       : "public";
 
-  return { mode, access };
+  const title = sanitizeLabelValue(
+    String(maybeBody.title || "GTO Study Room").slice(0, 60),
+    "GTO Study Room",
+  );
+
+  const invitedEmails =
+    access === "private" ? parseEmailList(maybeBody.invitedEmails) : [];
+
+  return {
+    title,
+    access,
+    invitedEmails,
+  };
 }
 
 function isActiveRoom(room: any) {
@@ -221,6 +214,44 @@ function pickUnusedProfileId(rooms: any[]) {
   );
 
   return GTO_PROFILE_IDS.find((profileId) => !usedProfileIds.has(profileId));
+}
+
+function canSeeRoom(room: any, email: string) {
+  const normalizedEmail = email.toLowerCase();
+  const roomAccess = room?.labels?.access || "public";
+
+  if (roomAccess !== "private") {
+    return true;
+  }
+
+  const creatorEmail = String(room?.labels?.created_by_email || "").toLowerCase();
+
+  if (creatorEmail === normalizedEmail) {
+    return true;
+  }
+
+  const invitedEmails = String(room?.labels?.invited_emails || "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+
+  return invitedEmails.includes(normalizedEmail);
+}
+
+function getBestRoomPreset() {
+  return {
+    screen: "1280x720@30",
+    video_codec: "VP8",
+    video_bitrate: 1500,
+    video_max_fps: 30,
+    audio_codec: "OPUS",
+    audio_bitrate: 64,
+    resources: {
+      memory: 3000000000,
+      shm_size: 1500000000,
+      nano_cpus: 4000000000,
+    },
+  };
 }
 
 async function getInstanceState() {
@@ -299,9 +330,9 @@ async function waitForNekoRoomsHealthy() {
   for (let i = 0; i < 60; i++) {
     try {
       const response = await fetch(`${baseUrl}/api/rooms`, {
-				cache: "no-store",
-				headers: getNekoRequestHeaders(),
-			});
+        cache: "no-store",
+        headers: getNekoRequestHeaders(),
+      });
 
       if (response.ok) {
         return;
@@ -320,9 +351,9 @@ async function listRooms() {
   const baseUrl = getBaseUrl();
 
   const response = await fetch(`${baseUrl}/api/rooms`, {
-		cache: "no-store",
-		headers: getNekoRequestHeaders(),
-	});
+    cache: "no-store",
+    headers: getNekoRequestHeaders(),
+  });
 
   if (!response.ok) {
     throw new Error(`Could not list Neko rooms: ${response.status}`);
@@ -364,20 +395,22 @@ async function waitForRoomReady(roomName: string) {
 
 async function createNekoRoom({
   profileId,
-  mode,
+  title,
   access,
+  invitedEmails,
   createdByEmail,
 }: {
   profileId: string;
-  mode: CreateRoomMode;
-  access: RoomAccess;
+  title: string;
+  access: RoomAccessType;
+  invitedEmails: string[];
   createdByEmail: string;
 }) {
   const baseUrl = getBaseUrl();
   const roomName = `poker-room-${Date.now()}`;
   const userPass = process.env.NEKO_ROOM_USER_PASS || "neko";
   const adminPass = process.env.NEKO_ROOM_ADMIN_PASS || "admin";
-  const preset = getRoomPreset(mode);
+  const preset = getBestRoomPreset();
 
   const payload = {
     name: roomName,
@@ -395,7 +428,9 @@ async function createNekoRoom({
       created_by: "website",
       created_by_email: createdByEmail,
       access,
-      mode,
+      mode: "good-720p",
+      title,
+      invited_emails: invitedEmails.join(","),
     },
 
     control_protection: false,
@@ -445,18 +480,19 @@ async function createNekoRoom({
     roomName,
     profileId,
     neko_image: payload.neko_image,
-    mode,
+    title,
     access,
+    invitedEmails,
     createdByEmail,
   });
 
   const response = await fetch(`${baseUrl}/api/rooms`, {
-		method: "POST",
-		headers: getNekoRequestHeaders({
-			"Content-Type": "application/json",
-		}),
-		body: JSON.stringify(payload),
-	});
+    method: "POST",
+    headers: getNekoRequestHeaders({
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify(payload),
+  });
 
   const responseText = await response.text();
 
@@ -488,7 +524,9 @@ async function createNekoRoom({
       created_by: "website",
       created_by_email: createdByEmail,
       access,
-      mode,
+      mode: "good-720p",
+      title,
+      invited_emails: invitedEmails.join(","),
     },
   };
 }
@@ -536,29 +574,28 @@ export async function GET() {
                   ? "Server is shutting down."
                   : "Server is offline.",
         },
+        max_active_rooms: MAX_ACTIVE_ROOMS,
         rooms: [],
       });
     }
 
     try {
       const rooms = await listRooms();
+      const normalizedRooms = rooms.map(normalizeRoom);
+      const visibleRooms = normalizedRooms.filter((room: any) =>
+        canSeeRoom(room, access.email),
+      );
 
-			const normalizedRooms = rooms.map(normalizeRoom);
-
-			const visibleRooms = normalizedRooms.filter((room: any) => {
-				if (room.labels?.access !== "private") return true;
-				return room.labels?.created_by_email === access.email;
-			});
-
-			return Response.json({
-				ec2_state: state,
-				server: {
-					state,
-					online: true,
-					message: "Server is online.",
-				},
-				rooms: visibleRooms,
-			});
+      return Response.json({
+        ec2_state: state,
+        server: {
+          state,
+          online: true,
+          message: "Server is online.",
+        },
+        max_active_rooms: MAX_ACTIVE_ROOMS,
+        rooms: visibleRooms,
+      });
     } catch (nekoError) {
       console.warn("EC2 is running but Neko Rooms is not ready yet:", nekoError);
 
@@ -569,6 +606,7 @@ export async function GET() {
           online: false,
           message: "Server is starting. Neko Rooms is still booting...",
         },
+        max_active_rooms: MAX_ACTIVE_ROOMS,
         rooms: [],
       });
     }
@@ -595,7 +633,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const { mode, access: roomAccess } = parseCreateRoomBody(body);
+    const roomOptions = parseCreateRoomBody(body);
 
     await startInstanceIfNeeded();
     await waitForNekoRoomsHealthy();
@@ -627,8 +665,9 @@ export async function POST(request: Request) {
 
     const room = await createNekoRoom({
       profileId,
-      mode,
-      access: roomAccess,
+      title: roomOptions.title,
+      access: roomOptions.access,
+      invitedEmails: roomOptions.invitedEmails,
       createdByEmail: access.email,
     });
 
