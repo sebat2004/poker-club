@@ -65,14 +65,14 @@ export default function AuthPanel({
           Membership not active
         </span>
         <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-          Your account isn&rsquo;t paid up
+          Your membership isn&rsquo;t active
         </h2>
         <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground md:text-base">
           You&rsquo;re signed in as{" "}
           <span className="font-medium text-foreground">
             {session.user.email}
           </span>
-          , but this account isn&rsquo;t marked as paid for this week.
+          , but our records show that this account isn&rsquo;t marked as paid for this week.
         </p>
 
         <div className="mt-6 flex flex-wrap gap-3">

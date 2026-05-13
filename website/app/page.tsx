@@ -96,13 +96,6 @@ export default function HomePage() {
                 </div>
               ))}
             </dl>
-
-            {!isPending && session?.user?.email && (
-              <p className="mt-6 max-w-full break-words font-mono text-[0.7rem] uppercase tracking-[0.14em] text-muted-foreground">
-                Signed in as{" "}
-                <span className="text-foreground">{session.user.email}</span>
-              </p>
-            )}
           </div>
 
           <HeroImageCard />
