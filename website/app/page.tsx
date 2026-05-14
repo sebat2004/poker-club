@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowUpRight, Sparkles } from "lucide-react";
+import { ArrowUpRight, Calendar, DollarSign, MapPin, Sparkles } from "lucide-react";
 import { useSession } from "@/app/lib/auth-client";
 import MembersSection from "@/app/_components/MembersSection";
 import MembershipPaymentAlert, {
@@ -31,9 +31,10 @@ const features = [
   },
 ];
 
-const heroStats = [
-  { value: "Weekly", label: "Tournaments" },
-  { value: "$10", label: "Weekly Dues" },
+const meetingInfo = [
+  { icon: Calendar,   label: "Tournaments", value: "Fri @ 5:30 PM" },
+  { icon: MapPin,     label: "Location",    value: "Owen 106"       },
+  { icon: DollarSign, label: "Buy-in",      value: "$10"            },
 ];
 
 export default function HomePage() {
@@ -95,20 +96,19 @@ export default function HomePage() {
               </a>
             </div>
 
-            <div className="mt-12 hidden max-w-xl border-t border-border pt-6 sm:block">
-              <dl className="grid max-w-sm grid-cols-2 gap-8">
-                {heroStats.map((stat) => (
-                  <div key={stat.label}>
-                    <dt className="font-mono text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">
-                      {stat.label}
-                    </dt>
-                    <dd className="mt-1 font-display text-2xl font-semibold tracking-tight text-foreground">
-                      {stat.value}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
+            <dl className="mt-8 grid grid-cols-3 gap-4 border-t border-border pt-6 sm:gap-8">
+              {meetingInfo.map(({ icon: Icon, label, value }) => (
+                <div key={label}>
+                  <dt className="inline-flex items-center gap-1.5 font-mono text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground">
+                    <Icon className="size-3 shrink-0 text-primary" strokeWidth={1.75} />
+                    {label}
+                  </dt>
+                  <dd className="mt-1.5 font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
           </div>
 
           <HeroImageCard />
