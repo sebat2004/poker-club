@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowUpRight, LogOut, Sparkles } from "lucide-react";
-import { signIn, signOut, useSession } from "@/app/lib/auth-client";
+import { ArrowUpRight, Sparkles } from "lucide-react";
+import { signIn, useSession } from "@/app/lib/auth-client";
+import MembersSection from "@/app/_components/MembersSection";
+import UserNav from "@/app/_components/UserNav";
 
 const features = [
   {
@@ -40,10 +42,7 @@ export default function HomePage() {
       <PageBackdrop />
 
       <div className="relative z-10 mx-auto w-full max-w-6xl px-6 md:px-8 lg:px-12">
-        <SiteNav
-          isPending={isPending}
-          isSignedIn={isSignedIn}
-        />
+        <SiteNav />
 
         {/* ----- Hero --------------------------------------------------- */}
         <section className="grid gap-12 py-10 md:py-18 lg:grid-cols-[minmax(0,1fr)_440px] lg:gap-16 lg:py-26">
@@ -132,6 +131,9 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* ----- Members ----------------------------------------------- */}
+        <MembersSection />
+
         {/* ----- Final CTA ---------------------------------------------- */}
         <section className="pt-8">
           <div className="glass-card relative overflow-hidden rounded-2xl border border-border p-8 md:p-12 lg:p-16">
@@ -193,13 +195,10 @@ function DiscordIcon({ className }: { className?: string }) {
   );
 }
 
-function SiteNav({
-  isPending,
-  isSignedIn,
-}: {
-  isPending: boolean;
-  isSignedIn: boolean;
-}) {
+function SiteNav() {
+  const { data: session } = useSession();
+  const isSignedIn = Boolean(session?.user);
+
   return (
     <nav className="flex items-center justify-between gap-6 py-6">
       <Link
@@ -223,37 +222,16 @@ function SiteNav({
         </div>
       </Link>
 
-      <div className="flex items-center gap-2">
-        {isPending ? (
-          <span className="font-mono text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">
-            Checking
-          </span>
-        ) : isSignedIn ? (
-          <>
-            <Link
-              href="/rooms"
-              className="hidden h-10 items-center rounded-lg px-3 text-sm font-medium text-muted-foreground transition hover:bg-white/[0.04] hover:text-foreground focus-visible:text-[var(--accent)] focus-visible:outline-none sm:inline-flex"
-            >
-              View Study Rooms
-            </Link>
-            <button
-                type="button"
-                onClick={() => signOut()}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium text-foreground transition-all duration-200 hover:border-[var(--border-hover)] hover:bg-white/[0.04] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
-            >
-                <LogOut className="size-3.5" strokeWidth={1.75} />
-                Sign out
-            </button>
-          </>
-        ) : (
-          <button
-            type="button"
-            onClick={() => signIn.social({ provider: "google" })}
-            className="inline-flex h-10 items-center rounded-lg border border-border px-4 text-sm font-medium text-foreground transition-all duration-200 hover:border-[var(--border-hover)] hover:bg-white/[0.04] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+      <div className="flex items-center gap-3">
+        {isSignedIn && (
+          <Link
+            href="/rooms"
+            className="hidden h-9 items-center rounded-lg px-3 text-sm font-medium text-muted-foreground transition hover:bg-white/[0.04] hover:text-foreground focus-visible:text-[var(--accent)] focus-visible:outline-none sm:inline-flex"
           >
-            Sign in
-          </button>
+            Study Rooms
+          </Link>
         )}
+        <UserNav />
       </div>
     </nav>
   );

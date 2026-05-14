@@ -171,6 +171,15 @@
     font-family: var(--font-heading);
     letter-spacing: -0.025em;
   }
+
+  /* Restore pointer cursor that Tailwind Preflight removes from buttons/links */
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  a[href],
+  label[for],
+  select {
+    cursor: pointer;
+  }
 }
 
 html,
