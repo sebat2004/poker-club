@@ -73,7 +73,7 @@ docker-compose.override.yml
 members.json
 rooms.json
 
-profiles/
+/profiles/
 browser-profiles/
 neko-profiles/
 firefox-profile/
