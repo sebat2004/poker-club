@@ -43,6 +43,14 @@ resource "aws_security_group" "neko_sg" {
   description = "Security group for Neko Rooms"
 
   ingress {
+    description = "Neko Rooms HTTP"
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
     description = "Neko WebRTC TCP"
     from_port   = 59000
     to_port     = 59049
@@ -140,8 +148,8 @@ resource "aws_instance" "neko" {
     data_volume_id         = aws_ebs_volume.neko_data.id
     data_volume_id_no_dash = replace(aws_ebs_volume.neko_data.id, "-", "")
 
-    docker_compose_yml = file("${path.module}/../neko-rooms-club/docker-compose.yml")
-		caddy_basic_auth_hash  = var.caddy_basic_auth_hash
+    docker_compose_yml    = file("${path.module}/../neko-rooms-club/docker-compose.yml")
+    caddy_basic_auth_hash = var.caddy_basic_auth_hash
   })
 
   tags = {

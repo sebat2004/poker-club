@@ -2,23 +2,39 @@
 set -euo pipefail
 
 ENVIRONMENT="${1:-production}"
+ENV_FILE="${2:-website/.env.local}"
 
-echo "Reading Terraform outputs..."
+if [ ! -f "$ENV_FILE" ]; then
+  echo "Missing env file: $ENV_FILE"
+  exit 1
+fi
 
-NEKO_URL="$(cd infra && AWS_PROFILE=poker-terraform terraform output -raw neko_rooms_public_url)"
-INSTANCE_ID="$(cd infra && AWS_PROFILE=poker-terraform terraform output -raw neko_instance_id)"
+echo "Syncing Vercel env from $ENV_FILE to $ENVIRONMENT"
 
-echo "Terraform Neko URL: $NEKO_URL"
-echo "Terraform instance ID: $INSTANCE_ID"
-echo "Updating Vercel environment: $ENVIRONMENT"
+cd website
 
-set +e
-npm --prefix website exec vercel -- env rm NEKO_ROOMS_PUBLIC_URL "$ENVIRONMENT" -y
-npm --prefix website exec vercel -- env rm NEKO_INSTANCE_ID "$ENVIRONMENT" -y
-set -e
+while IFS='=' read -r key value; do
+  # Skip empty lines and comments
+  [[ -z "${key:-}" ]] && continue
+  [[ "$key" =~ ^# ]] && continue
 
-printf "%s" "$NEKO_URL" | npm --prefix website exec vercel -- env add NEKO_ROOMS_PUBLIC_URL "$ENVIRONMENT"
-printf "%s" "$INSTANCE_ID" | npm --prefix website exec vercel -- env add NEKO_INSTANCE_ID "$ENVIRONMENT"
+  # Trim whitespace
+  key="$(echo "$key" | xargs)"
 
-echo "Done. Redeploy Vercel to apply the new env vars:"
+  # Skip malformed lines
+  [[ -z "$key" ]] && continue
+
+  # Remove optional surrounding quotes
+  value="${value%\"}"
+  value="${value#\"}"
+  value="${value%\'}"
+  value="${value#\'}"
+
+  echo "Updating $key"
+
+  npx vercel env rm "$key" "$ENVIRONMENT" -y >/dev/null 2>&1 || true
+  printf "%s" "$value" | npx vercel env add "$key" "$ENVIRONMENT"
+done < "../$ENV_FILE"
+
+echo "Done. Redeploy with:"
 echo "cd website && npx vercel --prod"
