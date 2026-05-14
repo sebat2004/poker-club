@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowUpRight, Sparkles } from "lucide-react";
-import { signIn, useSession } from "@/app/lib/auth-client";
+import { useSession } from "@/app/lib/auth-client";
 import MembersSection from "@/app/_components/MembersSection";
 import MembershipPaymentAlert, {
   PAYMENT_FORM_URL,
@@ -289,17 +289,18 @@ function HeroPrimaryAction({
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => signIn.social({ provider: "google" })}
+    <a
+      href={PAYMENT_FORM_URL}
+      target="_blank"
+      rel="noopener noreferrer"
       className={className}
     >
-      Sign in to play
+      Pay dues
       <ArrowUpRight
         className="size-4 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
         strokeWidth={2}
       />
-    </button>
+    </a>
   );
 }
 
