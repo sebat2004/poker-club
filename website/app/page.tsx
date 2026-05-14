@@ -5,6 +5,9 @@ import Image from "next/image";
 import { ArrowUpRight, Sparkles } from "lucide-react";
 import { signIn, useSession } from "@/app/lib/auth-client";
 import MembersSection from "@/app/_components/MembersSection";
+import MembershipPaymentAlert, {
+  PAYMENT_FORM_URL,
+} from "@/app/_components/MembershipPaymentAlert";
 import UserNav from "@/app/_components/UserNav";
 
 const features = [
@@ -43,6 +46,8 @@ export default function HomePage() {
 
       <div className="relative z-10 mx-auto w-full max-w-6xl px-6 md:px-8 lg:px-12">
         <SiteNav />
+
+        <MembershipPaymentAlert />
 
         {/* ----- Hero --------------------------------------------------- */}
         <section className="grid gap-12 py-10 md:py-18 lg:grid-cols-[minmax(0,1fr)_440px] lg:gap-16 lg:py-26">
@@ -90,18 +95,20 @@ export default function HomePage() {
               </a>
             </div>
 
-            <dl className="mt-12 hidden sm:grid max-w-sm grid-cols-2 gap-8 border-t border-border pt-6">
-              {heroStats.map((stat) => (
-                <div key={stat.label}>
-                  <dt className="font-mono text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">
-                    {stat.label}
-                  </dt>
-                  <dd className="mt-1 font-display text-2xl font-semibold tracking-tight text-foreground">
-                    {stat.value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
+            <div className="mt-12 hidden max-w-xl border-t border-border pt-6 sm:block">
+              <dl className="grid max-w-sm grid-cols-2 gap-8">
+                {heroStats.map((stat) => (
+                  <div key={stat.label}>
+                    <dt className="font-mono text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">
+                      {stat.label}
+                    </dt>
+                    <dd className="mt-1 font-display text-2xl font-semibold tracking-tight text-foreground">
+                      {stat.value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
           </div>
 
           <HeroImageCard />
@@ -222,7 +229,7 @@ function SiteNav() {
         </div>
       </Link>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         {isSignedIn && (
           <Link
             href="/rooms"
@@ -231,6 +238,20 @@ function SiteNav() {
             Study Rooms
           </Link>
         )}
+
+        <a
+          href={PAYMENT_FORM_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground transition-all duration-200 hover:brightness-110 hover:shadow-[0_0_18px_rgba(220,68,5,0.35)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] sm:px-4 sm:text-sm"
+        >
+          Pay dues
+          <ArrowUpRight
+            className="hidden size-3.5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 sm:block"
+            strokeWidth={2}
+          />
+        </a>
+
         <UserNav />
       </div>
     </nav>

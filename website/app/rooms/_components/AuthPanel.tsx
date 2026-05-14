@@ -1,6 +1,7 @@
 "use client";
 
 import { signIn, signOut, useSession } from "@/app/lib/auth-client";
+import { PAYMENT_FORM_URL } from "@/app/_components/MembershipPaymentAlert";
 import type { AuthErrorState } from "@/app/rooms/_lib/types";
 import { ArrowUpRight, RefreshCw } from "lucide-react";
 
@@ -76,6 +77,16 @@ export default function AuthPanel({
         </p>
 
         <div className="mt-6 flex flex-wrap gap-3">
+          <a
+            href={PAYMENT_FORM_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-5 text-sm font-medium text-primary-foreground transition-all duration-200 hover:brightness-110 hover:shadow-[0_0_20px_rgba(220,68,5,0.4)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+          >
+            Pay dues
+            <ArrowUpRight className="size-4" strokeWidth={1.75} />
+          </a>
+
           <button
             type="button"
             onClick={() => signOut()}
@@ -87,7 +98,7 @@ export default function AuthPanel({
           <button
             type="button"
             onClick={onRefresh}
-            className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-5 text-sm font-medium text-primary-foreground transition-all duration-200 hover:brightness-110 hover:shadow-[0_0_20px_rgba(220,68,5,0.4)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+            className="inline-flex h-11 items-center gap-2 rounded-lg border border-border px-5 text-sm font-medium text-foreground transition-all duration-200 hover:border-[var(--border-hover)] hover:bg-white/[0.04] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
           >
             <RefreshCw className="size-4" strokeWidth={1.75} />
             Check again
