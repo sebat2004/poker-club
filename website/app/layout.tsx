@@ -8,6 +8,8 @@ import {
 } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
+import { Analytics } from "@vercel/analytics/next"
+
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
@@ -61,6 +63,7 @@ export default function RootLayout({
       ].join(" ")}
     >
       <body className="relative min-h-full flex flex-col overflow-x-hidden">
+				<Analytics />
         <Providers>{children}</Providers>
       </body>
     </html>
