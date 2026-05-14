@@ -353,7 +353,7 @@ export default function CreateRoomModal({
               </div>
             </div>
 
-            <div className="flex flex-col-reverse gap-3 border-t border-border bg-background-alt/40 px-7 py-5 sm:flex-row sm:justify-end sm:px-9">
+            <div className="flex flex-col-reverse gap-3 bg-background-alt/40 px-7 py-5 sm:flex-row sm:justify-end sm:px-9">
               <button
                 type="button"
                 onClick={onClose}

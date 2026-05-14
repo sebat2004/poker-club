@@ -38,6 +38,12 @@ export type CreateRoomOptions = {
   invitedEmails: string[];
 };
 
+export type EditRoomOptions = {
+  title: string;
+  access: "public" | "private";
+  invitedEmails: string[];
+};
+
 export type AuthErrorState = {
   status: 401 | 403;
   message: string;

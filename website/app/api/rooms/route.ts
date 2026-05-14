@@ -5,6 +5,11 @@ import {
 } from "@aws-sdk/client-ec2";
 import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
 import { requireRoomAccess } from "@/app/lib/roomAuth";
+import {
+  applyOverride,
+  listRoomOverrides,
+  type RoomOverride,
+} from "@/app/lib/roomOverrides";
 
 export const runtime = "nodejs";
 
@@ -20,6 +25,8 @@ const AWS_REGION = process.env.AWS_REGION || "us-west-2";
 const AWS_ROLE_ARN = process.env.AWS_ROLE_ARN;
 const NEKO_INSTANCE_ID = process.env.NEKO_INSTANCE_ID;
 const NEKO_ROOMS_PUBLIC_URL = process.env.NEKO_ROOMS_PUBLIC_URL;
+const NEKO_ROOMS_API_URL =
+  process.env.NEKO_ROOMS_API_URL || process.env.NEKO_ROOMS_PUBLIC_URL;
 const MAX_ACTIVE_ROOMS = Number(process.env.MAX_ACTIVE_ROOMS || 3);
 
 const NEKO_ROOM_IMAGE =
@@ -63,19 +70,26 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function getBaseUrl() {
+function getPublicBaseUrl() {
   return requireEnv(NEKO_ROOMS_PUBLIC_URL, "NEKO_ROOMS_PUBLIC_URL").replace(
     /\/$/,
     "",
   );
 }
 
+function getApiBaseUrl() {
+  return requireEnv(NEKO_ROOMS_API_URL, "NEKO_ROOMS_API_URL").replace(
+    /\/$/,
+    "",
+  );
+}
+
 function buildPublicRoomUrl(roomName: string) {
-  return `${getBaseUrl()}/room/${roomName}/`;
+  return `${getPublicBaseUrl()}/room/${roomName}/`;
 }
 
 function normalizeNekoRoomUrl(rawUrl: string | undefined, roomName: string) {
-  const baseUrl = getBaseUrl();
+  const baseUrl = getPublicBaseUrl();
 
   if (!rawUrl) {
     return buildPublicRoomUrl(roomName);
@@ -325,7 +339,7 @@ async function startInstanceIfNeeded() {
 }
 
 async function waitForNekoRoomsHealthy() {
-  const baseUrl = getBaseUrl();
+  const baseUrl = getApiBaseUrl();
 
   for (let i = 0; i < 60; i++) {
     try {
@@ -348,7 +362,7 @@ async function waitForNekoRoomsHealthy() {
 }
 
 async function listRooms() {
-  const baseUrl = getBaseUrl();
+  const baseUrl = getApiBaseUrl();
 
   const response = await fetch(`${baseUrl}/api/rooms`, {
     cache: "no-store",
@@ -406,7 +420,7 @@ async function createNekoRoom({
   invitedEmails: string[];
   createdByEmail: string;
 }) {
-  const baseUrl = getBaseUrl();
+  const baseUrl = getApiBaseUrl();
   const roomName = `poker-room-${Date.now()}`;
   const userPass = process.env.NEKO_ROOM_USER_PASS || "neko";
   const adminPass = process.env.NEKO_ROOM_ADMIN_PASS || "admin";
@@ -580,11 +594,26 @@ export async function GET() {
     }
 
     try {
-      const rooms = await listRooms();
-      const normalizedRooms = rooms.map(normalizeRoom);
-      const visibleRooms = normalizedRooms.filter((room: any) =>
-        canSeeRoom(room, access.email),
-      );
+      const [rooms, overrides] = await Promise.all([
+        listRooms(),
+        /* Override fetch is non-critical — a DB hiccup shouldn't take the
+           rooms page down. Fall back to an empty list and serve labels
+           straight from Neko. */
+        listRoomOverrides().catch((err) => {
+          console.warn("Could not load room overrides:", err);
+          return [] as RoomOverride[];
+        }),
+      ]);
+
+      const overrideById = new Map(overrides.map((o) => [o.room_id, o]));
+
+      /* Order matters: apply override → normalize → filter. The override
+         can change `access` / `invited_emails`, and the visibility filter
+         reads from labels, so the merge must happen before filtering. */
+      const visibleRooms = rooms
+        .map((room: any) => applyOverride(room, overrideById.get(room.id)))
+        .map(normalizeRoom)
+        .filter((room: any) => canSeeRoom(room, access.email));
 
       return Response.json({
         ec2_state: state,
@@ -655,7 +684,7 @@ export async function POST(request: Request) {
     if (!profileId) {
       return Response.json(
         {
-          error: "All GTO Wizard profile clones are currently in use.",
+          error: "All GTO Wizard profiles are currently in use.",
         },
         {
           status: 409,

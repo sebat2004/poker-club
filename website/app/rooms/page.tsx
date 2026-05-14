@@ -4,25 +4,32 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
-  LogIn,
-  LogOut,
   Plus,
   RefreshCw,
 } from "lucide-react";
-import { signIn, signOut, useSession } from "@/app/lib/auth-client";
+import { useSession } from "@/app/lib/auth-client";
+import UserNav from "@/app/_components/UserNav";
 
 import AuthPanel from "@/app/rooms/_components/AuthPanel";
+import ConfirmDeleteDialog from "@/app/rooms/_components/ConfirmDeleteDialog";
 import CreateRoomModal, {
   getCreationStepCount,
 } from "@/app/rooms/_components/CreateRoomModal";
+import EditRoomModal from "@/app/rooms/_components/EditRoomModal";
 import RoomCard from "@/app/rooms/_components/RoomCard";
 
-import type { CreateRoomOptions, Room } from "@/app/rooms/_lib/types";
+import type {
+  CreateRoomOptions,
+  EditRoomOptions,
+  Room,
+} from "@/app/rooms/_lib/types";
 import {
   getRoomsAuthError,
   getRoomsErrorMessage,
   useCreateRoomMutation,
+  useDeleteRoomMutation,
   useRoomsQuery,
+  useUpdateRoomMutation,
 } from "@/app/rooms/_hooks/useRooms";
 
 const MAX_ROOM_SLOTS = 3;
@@ -40,8 +47,17 @@ export default function RoomsPage() {
   const [isFinishing, setIsFinishing] = useState(false);
   const creationTimerRef = useRef<number | null>(null);
 
+  /* Edit + delete modals are scoped to a single room at a time. Holding
+     the target room in local state (rather than reaching into the cached
+     query data on render) keeps the dialogs stable during the React Query
+     refetch that follows a successful mutation. */
+  const [roomBeingEdited, setRoomBeingEdited] = useState<Room | null>(null);
+  const [roomBeingDeleted, setRoomBeingDeleted] = useState<Room | null>(null);
+
   const roomsQuery = useRoomsQuery();
   const createRoomMutation = useCreateRoomMutation();
+  const updateRoomMutation = useUpdateRoomMutation();
+  const deleteRoomMutation = useDeleteRoomMutation();
 
   const roomsData = roomsQuery.data;
   const rooms = roomsData?.rooms ?? [];
@@ -112,6 +128,56 @@ export default function RoomsPage() {
     }
   }
 
+  /* ----- Edit / delete handlers ---------------------------------------- */
+
+  function openEdit(room: Room) {
+    updateRoomMutation.reset();
+    setRoomBeingEdited(room);
+  }
+
+  function closeEdit() {
+    setRoomBeingEdited(null);
+  }
+
+  async function saveEdit(options: EditRoomOptions) {
+    if (!roomBeingEdited) return;
+    try {
+      await updateRoomMutation.mutateAsync({
+        roomId: roomBeingEdited.id,
+        options,
+      });
+      closeEdit();
+    } catch {
+      /* error stays surfaced in the modal via updateRoomMutation.error */
+    }
+  }
+
+  function openDelete(room: Room) {
+    deleteRoomMutation.reset();
+    setRoomBeingDeleted(room);
+  }
+
+  function closeDelete() {
+    setRoomBeingDeleted(null);
+  }
+
+  async function confirmDelete() {
+    if (!roomBeingDeleted) return;
+    try {
+      await deleteRoomMutation.mutateAsync(roomBeingDeleted.id);
+      closeDelete();
+    } catch {
+      /* error stays surfaced in the dialog via deleteRoomMutation.error */
+    }
+  }
+
+  const editError = updateRoomMutation.isError
+    ? getRoomsErrorMessage(updateRoomMutation.error)
+    : "";
+  const deleteError = deleteRoomMutation.isError
+    ? getRoomsErrorMessage(deleteRoomMutation.error)
+    : "";
+
   useEffect(() => {
     return () => {
       clearCreationTimer();
@@ -134,10 +200,27 @@ export default function RoomsPage() {
         onCreate={createRoom}
       />
 
+      <EditRoomModal
+        room={roomBeingEdited}
+        isOpen={Boolean(roomBeingEdited)}
+        isSaving={updateRoomMutation.isPending}
+        error={editError}
+        onClose={closeEdit}
+        onSave={saveEdit}
+      />
+
+      <ConfirmDeleteDialog
+        room={roomBeingDeleted}
+        isOpen={Boolean(roomBeingDeleted)}
+        isDeleting={deleteRoomMutation.isPending}
+        error={deleteError}
+        onCancel={closeDelete}
+        onConfirm={confirmDelete}
+      />
+
       <div className="relative z-10 mx-auto w-full max-w-5xl px-6 py-6 md:px-8 md:py-8">
         <RoomsNav
           isFetching={roomsQuery.isFetching}
-          isSignedIn={Boolean(session?.user)}
           onRefresh={() => roomsQuery.refetch()}
         />
 
@@ -198,7 +281,17 @@ export default function RoomsPage() {
             ) : (
               <div className="grid gap-3">
                 {visibleRooms.map((room) => (
-                  <RoomCard key={room.id} room={room} />
+                  <RoomCard
+                    key={room.id}
+                    room={room}
+                    currentUserEmail={session?.user?.email}
+                    onEdit={openEdit}
+                    onDelete={openDelete}
+                    isDeleting={
+                      deleteRoomMutation.isPending &&
+                      roomBeingDeleted?.id === room.id
+                    }
+                  />
                 ))}
 
                 {canCreateAnotherRoom && (
@@ -235,11 +328,9 @@ function PageBackdrop() {
 
 function RoomsNav({
   isFetching,
-  isSignedIn,
   onRefresh,
 }: {
   isFetching: boolean;
-  isSignedIn: boolean;
   onRefresh: () => void;
 }) {
   return (
@@ -266,25 +357,7 @@ function RoomsNav({
           {isFetching ? "Refreshing…" : "Refresh"}
         </button>
 
-        {isSignedIn ? (
-          <button
-            type="button"
-            onClick={() => signOut()}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium text-foreground transition-all duration-200 hover:border-[var(--border-hover)] hover:bg-white/[0.04] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
-          >
-            <LogOut className="size-3.5" strokeWidth={1.75} />
-            Sign out
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => signIn.social({ provider: "google" })}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium text-foreground transition-all duration-200 hover:border-[var(--border-hover)] hover:bg-white/[0.04] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
-          >
-            <LogIn className="size-3.5" strokeWidth={1.75} />
-            Sign in
-          </button>
-        )}
+        <UserNav />
       </div>
     </nav>
   );

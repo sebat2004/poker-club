@@ -1,8 +1,14 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CreateRoomOptions } from "@/app/rooms/_lib/types";
-import { createRoom, fetchRooms, RoomsApiError } from "@/app/rooms/_lib/rooms-api";
+import type { CreateRoomOptions, EditRoomOptions } from "@/app/rooms/_lib/types";
+import {
+  createRoom,
+  deleteRoom,
+  fetchRooms,
+  RoomsApiError,
+  updateRoom,
+} from "@/app/rooms/_lib/rooms-api";
 
 export const roomsQueryKey = ["rooms"];
 
@@ -23,6 +29,34 @@ export function useCreateRoomMutation() {
       await queryClient.invalidateQueries({
         queryKey: roomsQueryKey,
       });
+    },
+  });
+}
+
+export function useUpdateRoomMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      roomId,
+      options,
+    }: {
+      roomId: string;
+      options: EditRoomOptions;
+    }) => updateRoom(roomId, options),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: roomsQueryKey });
+    },
+  });
+}
+
+export function useDeleteRoomMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (roomId: string) => deleteRoom(roomId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: roomsQueryKey });
     },
   });
 }

@@ -1,5 +1,6 @@
 import type {
   CreateRoomOptions,
+  EditRoomOptions,
   RoomsApiResponse,
 } from "@/app/rooms/_lib/types";
 import { getApiErrorMessage, readJsonResponse } from "@/app/rooms/_lib/room-utils";
@@ -41,6 +42,38 @@ export async function createRoom(options: CreateRoomOptions) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(options),
+  });
+
+  const data = (await readJsonResponse(response)) as RoomsApiResponse;
+
+  if (!response.ok) {
+    throw new RoomsApiError(getApiErrorMessage(data), response.status, data);
+  }
+
+  return data;
+}
+
+export async function updateRoom(roomId: string, options: EditRoomOptions) {
+  const response = await fetch(`/api/rooms/${encodeURIComponent(roomId)}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(options),
+  });
+
+  const data = (await readJsonResponse(response)) as RoomsApiResponse;
+
+  if (!response.ok) {
+    throw new RoomsApiError(getApiErrorMessage(data), response.status, data);
+  }
+
+  return data;
+}
+
+export async function deleteRoom(roomId: string) {
+  const response = await fetch(`/api/rooms/${encodeURIComponent(roomId)}`, {
+    method: "DELETE",
   });
 
   const data = (await readJsonResponse(response)) as RoomsApiResponse;
