@@ -105,7 +105,8 @@ export async function GET(request: Request) {
   }
 
   const instanceId = process.env.NEKO_INSTANCE_ID;
-  const nekoRoomsApiUrl = process.env.NEKO_ROOMS_PUBLIC_URL;
+  const nekoRoomsApiUrl =
+  process.env.NEKO_ROOMS_API_URL || process.env.NEKO_ROOMS_PUBLIC_URL;
 
   if (!instanceId) {
     return NextResponse.json(

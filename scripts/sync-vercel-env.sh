@@ -30,6 +30,23 @@ while IFS='=' read -r key value; do
   value="${value%\'}"
   value="${value#\'}"
 
+  # Production overrides
+  if [[ "$ENVIRONMENT" == "production" ]]; then
+    if [[ "$key" == "BETTER_AUTH_URL" ]]; then
+        value="https://www.osupoker.club"
+    fi
+
+    if [[ "$key" == "NEKO_ROOMS_PUBLIC_URL" ]]; then
+        value="https://neko.osupoker.club"
+    fi
+
+    if [[ "$key" == "NEKO_ROOMS_API_URL" ]]; then
+        value="http://184.34.81.253:8080"
+    fi
+  fi
+
+  echo "Updating $key"
+
   echo "Updating $key"
 
   npx vercel env rm "$key" "$ENVIRONMENT" -y >/dev/null 2>&1 || true

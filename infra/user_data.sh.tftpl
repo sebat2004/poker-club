@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -euxo pipefail
 
-DOMAIN_NAME="gto.osupoker.club"
+DOMAIN_NAME="neko.osupoker.club"
 PUBLIC_IP="${public_ip}"
-NEKO_PUBLIC_URL="https://gto.osupoker.club"
+NEKO_PUBLIC_URL="https://neko.osupoker.club"
+
+DATA_VOLUME_ID="${data_volume_id}"
+DATA_VOLUME_ID_NO_DASH="${data_volume_id_no_dash}"
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -16,7 +19,59 @@ apt-get install -y \
   apt-transport-https \
   software-properties-common \
   cron \
-  jq
+  jq \
+  util-linux \
+  xfsprogs \
+  rsync
+
+# -----------------------------
+# Persistent EBS data mount
+# -----------------------------
+mkdir -p /opt/neko-rooms
+mkdir -p /opt/neko-rooms/data
+
+DEVICE_BY_ID="/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_${data_volume_id_no_dash}"
+
+echo "Waiting for EBS data volume: $DEVICE_BY_ID"
+
+for i in $(seq 1 60); do
+  if [ -e "$DEVICE_BY_ID" ]; then
+    break
+  fi
+
+  echo "Waiting for data volume to appear... attempt $i"
+  sleep 2
+done
+
+if [ ! -e "$DEVICE_BY_ID" ]; then
+  echo "ERROR: Data volume did not appear at $DEVICE_BY_ID"
+  ls -la /dev/disk/by-id || true
+  lsblk || true
+  exit 1
+fi
+
+if ! blkid "$DEVICE_BY_ID" >/dev/null 2>&1; then
+  echo "No filesystem found on data volume. Creating ext4 filesystem."
+  mkfs.ext4 -F "$DEVICE_BY_ID"
+fi
+
+if ! grep -q "$DEVICE_BY_ID" /etc/fstab; then
+  echo "$DEVICE_BY_ID /opt/neko-rooms/data ext4 defaults,nofail 0 2" >> /etc/fstab
+fi
+
+mountpoint -q /opt/neko-rooms/data || mount /opt/neko-rooms/data
+
+# -----------------------------
+# Neko Rooms directories
+# -----------------------------
+mkdir -p /opt/neko-rooms
+mkdir -p /opt/neko-rooms/bin
+mkdir -p /opt/neko-rooms/data
+mkdir -p /opt/neko-rooms/data/public
+mkdir -p /opt/neko-rooms/data/templates
+mkdir -p /opt/neko-rooms/data/templates/firefox-policy
+mkdir -p /opt/neko-rooms/data/public/profile-clones
+mkdir -p /opt/neko-rooms/data/caddy
 
 # -----------------------------
 # Docker install
@@ -57,29 +112,48 @@ if ! command -v caddy >/dev/null 2>&1; then
   apt-get install -y caddy
 fi
 
+# Persist Caddy certs/config on the Neko data volume so EC2 replacements
+# do not burn Let’s Encrypt duplicate certificate limits.
+mkdir -p /opt/neko-rooms/data/caddy/.local/share
+mkdir -p /opt/neko-rooms/data/caddy/.config
+
+if [ -d /var/lib/caddy ] && [ ! -d /opt/neko-rooms/data/caddy/.local/share/caddy ]; then
+  rsync -a /var/lib/caddy/ /opt/neko-rooms/data/caddy/ || true
+fi
+
+chown -R caddy:caddy /opt/neko-rooms/data/caddy || true
+
+mkdir -p /etc/systemd/system/caddy.service.d
+
+cat >/etc/systemd/system/caddy.service.d/override.conf <<'EOF'
+[Service]
+Environment=XDG_DATA_HOME=/opt/neko-rooms/data/caddy/.local/share
+Environment=XDG_CONFIG_HOME=/opt/neko-rooms/data/caddy/.config
+EOF
+
+systemctl daemon-reload
+
 cat >/etc/caddy/Caddyfile <<'EOF'
-gto.osupoker.club {
-  basic_auth {
-    admin ${caddy_basic_auth_hash}
+neko.osupoker.club {
+  # Let users open actual Neko room links without Caddy basic auth.
+  handle /room/* {
+    reverse_proxy localhost:8080
   }
 
-  reverse_proxy localhost:8080
+  # Everything else, like the Neko Rooms dashboard and API, requires admin login.
+  handle {
+    basic_auth {
+      admin ${caddy_basic_auth_hash}
+    }
+
+    reverse_proxy localhost:8080
+  }
 }
 EOF
 
+caddy validate --config /etc/caddy/Caddyfile
 systemctl enable caddy
-systemctl reload caddy || systemctl restart caddy
-
-# -----------------------------
-# Neko Rooms directories
-# -----------------------------
-mkdir -p /opt/neko-rooms
-mkdir -p /opt/neko-rooms/bin
-mkdir -p /opt/neko-rooms/data
-mkdir -p /opt/neko-rooms/data/public
-mkdir -p /opt/neko-rooms/data/templates
-mkdir -p /opt/neko-rooms/data/templates/firefox-policy
-mkdir -p /opt/neko-rooms/data/public/profile-clones
+systemctl restart caddy
 
 # -----------------------------
 # Neko Rooms environment
@@ -226,7 +300,7 @@ cat >/opt/neko-rooms/bin/clone-gto-profiles.sh <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-SOURCE_PROFILE="$${1:-/opt/neko-rooms/data/public/firefox-profile}"
+SOURCE_PROFILE="$${1:-/opt/neko-rooms/data/public/golden-firefox-profile}"
 COUNT="$${2:-5}"
 DEST_ROOT="/opt/neko-rooms/data/public/profile-clones"
 
@@ -243,6 +317,7 @@ for i in $(seq 1 "$COUNT"); do
 
   if [ -d "$DEST" ]; then
     echo "Profile clone already exists: $DEST"
+    rm -f "$DEST/lock" "$DEST/.parentlock" "$DEST/parent.lock" || true
     continue
   fi
 
@@ -251,6 +326,8 @@ for i in $(seq 1 "$COUNT"); do
 
   rm -f "$DEST/lock" "$DEST/.parentlock" "$DEST/parent.lock" || true
 done
+
+chown -R 1000:1000 "$DEST_ROOT" || true
 EOF
 
 chmod +x /opt/neko-rooms/bin/clone-gto-profiles.sh
@@ -353,6 +430,43 @@ systemctl enable cron
 systemctl restart cron
 
 # -----------------------------
+# Ensure Firefox golden profile and clones exist
+# -----------------------------
+mkdir -p /opt/neko-rooms/data/public/profile-clones
+
+if [ ! -d /opt/neko-rooms/data/public/golden-firefox-profile ]; then
+  if [ -d /opt/neko-rooms/data/public/firefox-profile ]; then
+    echo "golden-firefox-profile missing. Creating it from firefox-profile."
+    cp -a /opt/neko-rooms/data/public/firefox-profile /opt/neko-rooms/data/public/golden-firefox-profile
+  elif [ -d /opt/neko-rooms/data/public/profile-clones/gto-profile-1 ]; then
+    echo "golden-firefox-profile missing. Creating it from existing gto-profile-1."
+    cp -a /opt/neko-rooms/data/public/profile-clones/gto-profile-1 /opt/neko-rooms/data/public/golden-firefox-profile
+  else
+    echo "No existing profile found. Creating empty golden-firefox-profile."
+    mkdir -p /opt/neko-rooms/data/public/golden-firefox-profile
+  fi
+fi
+
+rm -f /opt/neko-rooms/data/public/golden-firefox-profile/lock \
+      /opt/neko-rooms/data/public/golden-firefox-profile/.parentlock \
+      /opt/neko-rooms/data/public/golden-firefox-profile/parent.lock || true
+
+chown -R 1000:1000 /opt/neko-rooms/data/public/golden-firefox-profile || true
+
+for i in 1 2 3 4 5; do
+  DEST="/opt/neko-rooms/data/public/profile-clones/gto-profile-$i"
+
+  if [ ! -d "$DEST" ]; then
+    echo "Creating missing clone: $DEST"
+    cp -a /opt/neko-rooms/data/public/golden-firefox-profile "$DEST"
+  fi
+
+  rm -f "$DEST/lock" "$DEST/.parentlock" "$DEST/parent.lock" || true
+done
+
+chown -R 1000:1000 /opt/neko-rooms/data/public/profile-clones || true
+
+# -----------------------------
 # Pull images and start Neko Rooms
 # -----------------------------
 docker pull m1k1o/neko-rooms:latest || true
@@ -372,26 +486,9 @@ docker inspect neko-rooms-neko-rooms-1 \
   | sort \
   | grep -E 'NEKO_ROOMS_INSTANCE_URL|NEKO_ROOMS_NAT1TO1|NEKO_ROOMS_INSTANCE_NETWORK|NEKO_ROOMS_NEKO_IMAGES' || true
 
+echo "Checking profile directories..."
+ls -la /opt/neko-rooms/data/public || true
+ls -la /opt/neko-rooms/data/public/profile-clones || true
+
 systemctl status caddy --no-pager || true
 systemctl status cron --no-pager || true
-
-# -----------------------------
-# Ensure Firefox profile clones exist
-# -----------------------------
-mkdir -p /opt/neko-rooms/data/public/profile-clones
-
-if [ -d /opt/neko-rooms/data/public/golden-firefox-profile ]; then
-  /opt/neko-rooms/bin/clone-gto-profiles.sh \
-    /opt/neko-rooms/data/public/golden-firefox-profile \
-    5 || true
-elif [ -d /opt/neko-rooms/data/public/firefox-profile ]; then
-  /opt/neko-rooms/bin/clone-gto-profiles.sh \
-    /opt/neko-rooms/data/public/firefox-profile \
-    5 || true
-fi
-
-for i in 1 2 3 4 5; do
-  mkdir -p "/opt/neko-rooms/data/public/profile-clones/gto-profile-$i"
-done
-
-chown -R 1000:1000 /opt/neko-rooms/data/public/profile-clones
