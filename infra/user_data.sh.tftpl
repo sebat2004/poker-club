@@ -163,18 +163,57 @@ cat >/opt/neko-rooms/data/templates/firefox-policy/policies.json <<'EOF'
     "DisableFirefoxStudies": true,
     "DisablePocket": true,
     "DisableTelemetry": true,
-    "OfferToSaveLogins": true,
-    "PasswordManagerEnabled": true,
+    "OfferToSaveLogins": false,
+    "PasswordManagerEnabled": false,
+
     "Homepage": {
       "URL": "https://www.gtowizard.com",
-      "Locked": false,
+      "Locked": true,
       "StartPage": "homepage"
     },
+
     "Preferences": {
       "browser.startup.homepage": {
         "Value": "https://www.gtowizard.com",
         "Status": "locked"
+      },
+      "browser.urlbar.suggest.history": {
+        "Value": false,
+        "Status": "locked"
+      },
+      "browser.urlbar.suggest.bookmark": {
+        "Value": false,
+        "Status": "locked"
+      },
+      "browser.urlbar.suggest.openpage": {
+        "Value": false,
+        "Status": "locked"
+      },
+      "signon.rememberSignons": {
+        "Value": false,
+        "Status": "locked"
       }
+    },
+
+    "WebsiteFilter": {
+      "Block": [
+        "<all_urls>"
+      ],
+      "Exceptions": [
+        "https://gtowizard.com/*",
+        "https://www.gtowizard.com/*",
+        "https://app.gtowizard.com/*",
+        "https://*.gtowizard.com/*",
+
+        "https://accounts.google.com/*",
+        "https://oauth2.googleapis.com/*",
+        "https://www.googleapis.com/*",
+        "https://apis.google.com/*",
+        "https://ssl.gstatic.com/*",
+        "https://www.gstatic.com/*",
+        "https://*.googleapis.com/*",
+        "https://*.gstatic.com/*"
+      ]
     }
   }
 }
