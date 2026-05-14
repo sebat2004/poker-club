@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import { Plus, X } from "lucide-react";
 import type { CreateRoomOptions } from "@/app/rooms/_lib/types";
-import { parseEmailList } from "@/app/rooms/_lib/room-utils";
 
 import {
   Dialog,
@@ -13,6 +13,10 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+
+/* Simple email shape check — not RFC-perfect, but enough to catch
+   accidental typos before the room request is even sent. */
+const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const CREATION_STEPS = [
   {
@@ -68,10 +72,46 @@ export default function CreateRoomModal({
 }) {
   const [title, setTitle] = useState("GTO Study Room");
   const [access, setAccess] = useState<CreateRoomOptions["access"]>("public");
-  const [inviteText, setInviteText] = useState("");
 
-  const invitedEmails = useMemo(() => parseEmailList(inviteText), [inviteText]);
+  const [pendingEmail, setPendingEmail] = useState("");
+  const [invitedEmails, setInvitedEmails] = useState<string[]>([]);
+  const [emailError, setEmailError] = useState("");
+
   const activeStep = CREATION_STEPS[creationStep] ?? CREATION_STEPS[0];
+
+  function addEmail() {
+    const trimmed = pendingEmail.trim().toLowerCase();
+    if (!trimmed) return;
+
+    if (!EMAIL_RX.test(trimmed)) {
+      setEmailError("That doesn't look like a valid email.");
+      return;
+    }
+    if (invitedEmails.includes(trimmed)) {
+      setEmailError("That email is already invited.");
+      return;
+    }
+
+    setInvitedEmails([...invitedEmails, trimmed]);
+    setPendingEmail("");
+    setEmailError("");
+  }
+
+  function removeEmail(email: string) {
+    setInvitedEmails(invitedEmails.filter((entry) => entry !== email));
+  }
+
+  function handleEmailKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter" || event.key === ",") {
+      event.preventDefault();
+      addEmail();
+      return;
+    }
+    if (event.key === "Backspace" && !pendingEmail && invitedEmails.length) {
+      event.preventDefault();
+      setInvitedEmails(invitedEmails.slice(0, -1));
+    }
+  }
 
   function submitRoom() {
     onCreate({
@@ -222,7 +262,10 @@ export default function CreateRoomModal({
                   </p>
                 </div>
 
-                {/* Invited emails — only for private rooms */}
+                {/* Invited emails — tag-input pattern. Each email is added
+                   deliberately (Enter, comma, or Add button) and each pill
+                   carries its own remove affordance, so the field stays
+                   compact regardless of how many addresses are queued. */}
                 {access === "private" && (
                   <div>
                     <Label
@@ -231,28 +274,66 @@ export default function CreateRoomModal({
                     >
                       Invited emails
                     </Label>
-                    <textarea
-                      id="invited-emails"
-                      value={inviteText}
-                      onChange={(event) => setInviteText(event.target.value)}
-                      placeholder="friend@oregonstate.edu, teammate@gmail.com"
-                      rows={5}
-                      className="mt-3 w-full resize-none rounded-lg border border-border bg-input px-4 py-3 text-sm leading-6 text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary/50 focus:shadow-[0_0_20px_rgba(220,68,5,0.1)] focus:ring-2 focus:ring-primary/20"
-                    />
-                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                      Separate emails with commas, spaces, or new lines.
-                      Invited users still need to be signed in and marked as
-                      paid before they can access rooms.
-                    </p>
+
+                    <div className="mt-3 flex items-center gap-2">
+                      <input
+                        id="invited-emails"
+                        type="email"
+                        autoComplete="off"
+                        value={pendingEmail}
+                        onChange={(event) => {
+                          setPendingEmail(event.target.value);
+                          if (emailError) setEmailError("");
+                        }}
+                        onKeyDown={handleEmailKeyDown}
+                        placeholder="friend@oregonstate.edu"
+                        aria-invalid={Boolean(emailError)}
+                        className={[
+                          "h-11 min-w-0 flex-1 rounded-lg border bg-input px-4 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:shadow-[0_0_20px_rgba(220,68,5,0.1)] focus:ring-2",
+                          emailError
+                            ? "border-destructive/50 focus:border-destructive/60 focus:ring-destructive/20"
+                            : "border-border focus:border-primary/50 focus:ring-primary/20",
+                        ].join(" ")}
+                      />
+                      <button
+                        type="button"
+                        onClick={addEmail}
+                        disabled={!pendingEmail.trim()}
+                        className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-lg border border-border px-4 text-sm font-medium text-foreground transition-all duration-200 hover:border-[var(--border-hover)] hover:bg-white/[0.04] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Plus className="size-4" strokeWidth={2} />
+                        Add
+                      </button>
+                    </div>
+
+                    {emailError ? (
+                      <p className="mt-2 text-xs text-destructive">
+                        {emailError}
+                      </p>
+                    ) : (
+                      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                        Press Enter or click Add to invite an address.
+                        Invited users still need to be signed in and marked
+                        as paid before they can access rooms.
+                      </p>
+                    )}
 
                     {invitedEmails.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-2">
                         {invitedEmails.map((email) => (
                           <span
                             key={email}
-                            className="rounded-full border border-border bg-white/[0.03] px-3 py-1 font-mono text-[0.7rem] text-muted-foreground"
+                            className="inline-flex items-center gap-1 rounded-full border border-border bg-white/[0.03] py-1 pl-3 pr-1 font-mono text-[0.7rem] text-foreground/85"
                           >
                             {email}
+                            <button
+                              type="button"
+                              onClick={() => removeEmail(email)}
+                              aria-label={`Remove ${email}`}
+                              className="inline-flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors duration-150 hover:bg-white/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--background)]"
+                            >
+                              <X className="size-3" strokeWidth={2.25} />
+                            </button>
                           </span>
                         ))}
                       </div>
