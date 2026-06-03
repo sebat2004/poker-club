@@ -32,9 +32,9 @@ const features = [
 ];
 
 const meetingInfo = [
-  { icon: Calendar,   label: "Tournaments", value: "Fri @ 5:30 PM" },
-  { icon: MapPin,     label: "Location",    value: "Owen 106"       },
-  { icon: DollarSign, label: "Buy-in",      value: "$10"            },
+  { icon: Calendar,   label: "Tournaments",  value: "Fri @ 4:30 PM", sub: "Late entry closes 5:15 PM" },
+  { icon: MapPin,     label: "Location",     value: "Owen 106",      sub: null                        },
+  { icon: DollarSign, label: "Member Dues",  value: "$20",           sub: null                        },
 ];
 
 export default function HomePage() {
@@ -97,7 +97,7 @@ export default function HomePage() {
             </div>
 
             <dl className="mt-8 grid grid-cols-3 gap-4 border-t border-border pt-6 sm:gap-8">
-              {meetingInfo.map(({ icon: Icon, label, value }) => (
+              {meetingInfo.map(({ icon: Icon, label, value, sub }) => (
                 <div key={label}>
                   <dt className="inline-flex items-center gap-1.5 font-mono text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground">
                     <Icon className="size-3 shrink-0 text-primary" strokeWidth={1.75} />
@@ -106,6 +106,11 @@ export default function HomePage() {
                   <dd className="mt-1.5 font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
                     {value}
                   </dd>
+                  {sub && (
+                    <p className="mt-0.5 font-mono text-[0.68rem] leading-snug text-muted-foreground/60">
+                      {sub}
+                    </p>
+                  )}
                 </div>
               ))}
             </dl>
@@ -159,7 +164,7 @@ export default function HomePage() {
                   Ready to deal in?
                 </h3>
                 <p className="mt-4 text-base leading-relaxed text-muted-foreground md:text-lg">
-                  $10 weekly member due. Open the GTO rooms to start training for the next tournament.
+                  $20 weekly member due. Open the GTO rooms to start training for the next tournament.
                 </p>
               </div>
 

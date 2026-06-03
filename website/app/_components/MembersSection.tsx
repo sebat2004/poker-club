@@ -184,35 +184,6 @@ export default function MembersSection() {
               />
             </div>
           )}
-
-          {/* Member history */}
-          {memberHistory.length > 0 && (
-            <div>
-              <SectionHeader
-                icon={History}
-                label="Alumni"
-                title="Member history"
-                count={memberHistory.length}
-              />
-              <div
-                className="flex gap-3 overflow-x-auto pb-2"
-                style={{ scrollSnapType: "x mandatory", scrollbarWidth: "none" }}
-              >
-                {memberHistory.map((profile) => (
-                  <div
-                    key={profile.id}
-                    className="opacity-70 transition-opacity hover:opacity-100"
-                  >
-                    <MemberCard profile={profile} />
-                  </div>
-                ))}
-                <div className="shrink-0 w-4" aria-hidden />
-              </div>
-              <p className="mt-3 font-mono text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground/50">
-                Past members who opted into the public member list
-              </p>
-            </div>
-          )}
         </div>
       )}
     </section>
